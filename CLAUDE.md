@@ -85,7 +85,10 @@ Docker Compose does **not** pick up `.env.local` automatically — only `.env`. 
 
 ### Branch state
 - Active branch: `main`
-- Render auto-deploys from `main` — v1.8.0 staged, not yet pushed
+- Render auto-deploys from `main` — v1.8.1 live
+
+### What shipped in v1.8.1 (2026-05-25)
+- Repo transferred to cordfuse org. No functional changes.
 
 ### What shipped in v1.8.0 (2026-05-04)
 - MkII combo amps: `20btmk2` (QR ID 21), `40btmk2` (QR ID 22), `60btmk2` (QR ID 23) — Pro 113-byte format, same as Lite MkII / 8BT MkII. Device IDs confirmed from official NUX MightyAmp APK Hermes bytecode disassembly. hwPresetVersion=1 confirmed from Mighty20MKII_CustomData bytecode.
