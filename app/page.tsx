@@ -1177,6 +1177,15 @@ function DeviceMismatchModal({ qr, targetDevice, onConvert, onSaveOriginal, onCl
 
 const WHATS_NEW: { version: string; items: { text: string; sub?: string }[] }[] = [
   {
+    version: '1.8.2',
+    items: [
+      {
+        text: 'Multi-PWA fix — disambiguates from sibling Cordfuse PWAs',
+        sub: 'If you already had another Cordfuse PWA installed on the same hostname, "Add to Home Screen" used to reopen the existing app instead of installing Mighty AI QR. Fixed by giving the manifest its own explicit identity.',
+      },
+    ],
+  },
+  {
     version: '1.8.1',
     items: [
       { text: 'Housekeeping — repo moved to the Cordfuse org on GitHub' },
@@ -1322,8 +1331,8 @@ function WelcomeModal({ onDismiss }: { onDismiss: () => void }) {
           <div className="relative bg-primary/10 border-b border-primary/20 px-6 pt-5 pb-4 text-center shrink-0">
             <img src="/icons/icon-192.png" alt="Mighty AI QR" className="h-12 w-12 rounded-xl mx-auto mb-3 shadow-lg" />
             <p className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-0.5">What&apos;s new</p>
-            <h2 className="text-xl font-bold text-fg">Mighty AI QR 1.8.1</h2>
-            <p className="text-xs text-fg-3 mt-0.5">MkII amp support + Mighty Go.</p>
+            <h2 className="text-xl font-bold text-fg">Mighty AI QR 1.8.2</h2>
+            <p className="text-xs text-fg-3 mt-0.5">Installable alongside other Cordfuse PWAs.</p>
           </div>
 
           {/* Body */}
