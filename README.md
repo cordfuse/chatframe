@@ -62,7 +62,7 @@ Intentional out-of-scope (re-add when you need them):
 
 ## Theme
 
-19 themes, picked via the in-app settings dialog. Labels (Tweed, Plexi, Blackface, etc.) are inherited from the upstream guitar-amp product — rename in `app/page.tsx` if you want neutrality.
+19 themes, picked via the in-app settings dialog. Light/Dark/OLED plus 16 colored palettes (Sepia, Amber, Forest, Burgundy, Slate, Olive, Midnight, Gold — each with a `Light` companion). Edit `THEMES` in `app/page.tsx` to add/remove. Underlying CSS variables and theme IDs are preserved from the upstream fork so `localStorage` continues to resolve cleanly.
 
 ## Origin
 

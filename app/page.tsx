@@ -11,28 +11,32 @@ import {
 } from '@/lib/storage'
 import type { ChatMessage, Conversation } from '@/lib/types'
 
-// ─── theme palette (inherited from mighty-ai-qr-web; rename labels later) ─────
+// ─── theme palette ───────────────────────────────────────────────────────────
+//
+// IDs intentionally preserved from the upstream fork so existing
+// localStorage values resolve cleanly across the rename. Only the
+// user-visible labels were rebranded to neutral palette names.
 
 const THEMES: { id: Theme; label: string }[] = [
   { id: 'dark',           label: 'Dark' },
   { id: 'oled',           label: 'OLED' },
   { id: 'light',          label: 'Light' },
-  { id: 'tweed',          label: 'Tweed' },
-  { id: 'tweed-lt',       label: 'Tweed Light' },
+  { id: 'tweed',          label: 'Sepia' },
+  { id: 'tweed-lt',       label: 'Sepia Light' },
   { id: 'amber',          label: 'Amber' },
   { id: 'amber-lt',       label: 'Amber Light' },
-  { id: 'british',        label: 'British' },
-  { id: 'british-lt',     label: 'British Light' },
-  { id: 'oxblood',        label: 'Oxblood' },
-  { id: 'oxblood-lt',     label: 'Oxblood Light' },
-  { id: 'silver',         label: 'Silver Panel' },
-  { id: 'silver-lt',      label: 'Silver Light' },
-  { id: 'pedalboard',     label: 'Pedalboard' },
-  { id: 'pedalboard-lt',  label: 'Pedalboard Light' },
-  { id: 'blackface',      label: 'Blackface' },
-  { id: 'blackface-lt',   label: 'Blackface Light' },
-  { id: 'plexi',          label: 'Plexi' },
-  { id: 'plexi-lt',       label: 'Plexi Light' },
+  { id: 'british',        label: 'Forest' },
+  { id: 'british-lt',     label: 'Forest Light' },
+  { id: 'oxblood',        label: 'Burgundy' },
+  { id: 'oxblood-lt',     label: 'Burgundy Light' },
+  { id: 'silver',         label: 'Slate' },
+  { id: 'silver-lt',      label: 'Slate Light' },
+  { id: 'pedalboard',     label: 'Olive' },
+  { id: 'pedalboard-lt',  label: 'Olive Light' },
+  { id: 'blackface',      label: 'Midnight' },
+  { id: 'blackface-lt',   label: 'Midnight Light' },
+  { id: 'plexi',          label: 'Gold' },
+  { id: 'plexi-lt',       label: 'Gold Light' },
 ]
 
 // ─── icons ───────────────────────────────────────────────────────────────────

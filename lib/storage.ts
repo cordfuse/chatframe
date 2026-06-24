@@ -47,9 +47,9 @@ export function relativeTime(ts: number): string {
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 //
-// 11 themes inherited from mighty-ai-qr-web. Names retain their guitar-amp
-// flavor (tweed/amber/british/oxblood/silver/pedalboard/blackface/plexi);
-// rename later if you want to neutralize the branding.
+// 19 theme IDs inherited from mighty-ai-qr-web (kept verbatim so existing
+// localStorage values resolve cleanly across the rename). User-visible
+// labels are rebranded — see THEMES in app/page.tsx.
 
 export type Theme = 'dark' | 'oled' | 'light' | 'tweed' | 'amber' | 'british' | 'oxblood' | 'silver' | 'pedalboard' | 'blackface' | 'plexi' | 'tweed-lt' | 'amber-lt' | 'british-lt' | 'oxblood-lt' | 'silver-lt' | 'pedalboard-lt' | 'blackface-lt' | 'plexi-lt'
 
