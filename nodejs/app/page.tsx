@@ -106,6 +106,15 @@ const SearchIcon = () => (
 const ChevronIcon = ({ open }: { open: boolean }) => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform shrink-0 ${open ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
 )
+const CopyIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+)
+const CheckIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+)
+const TrashSmIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+)
 
 // ─── delete-confirm modal ────────────────────────────────────────────────────
 
@@ -447,6 +456,82 @@ function Sidebar({
   )
 }
 
+// ─── message bubble ──────────────────────────────────────────────────────────
+
+function MessageItem({ msg, streaming, onDelete }: {
+  msg: ChatMessage
+  streaming: boolean
+  onDelete: (id: string) => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(msg.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  // Actions: subdued by default (so they're tappable on mobile), full
+  // opacity on row hover. Stop propagation so clicks don't bubble into
+  // any future bubble-level handler.
+  const actions = (
+    <div
+      className="flex gap-2 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity mb-1"
+      onClick={e => e.stopPropagation()}
+    >
+      <button onClick={copy} title={copied ? 'Copied' : 'Copy'} className="text-fg-4 hover:text-fg-2 transition-colors">
+        {copied ? <CheckIcon /> : <CopyIcon />}
+      </button>
+      <button onClick={() => onDelete(msg.id)} title="Delete message" className="text-fg-4 hover:text-red-400 transition-colors">
+        <TrashSmIcon />
+      </button>
+    </div>
+  )
+
+  if (msg.role === 'user') {
+    return (
+      <div className="group flex items-end justify-end gap-1.5">
+        {actions}
+        <div className="max-w-[75%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-on-primary whitespace-pre-wrap break-words">
+          {msg.content}
+        </div>
+      </div>
+    )
+  }
+
+  const isEmptyStreaming = msg.content.length === 0 && streaming
+  return (
+    <div className="group flex flex-col items-start gap-0.5">
+      <div className="flex items-end gap-1.5 max-w-full">
+        <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-surface px-4 py-3 text-sm text-fg">
+          {isEmptyStreaming ? (
+            <span className="inline-flex gap-1 items-end h-4">
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" />
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" />
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" />
+            </span>
+          ) : (
+            <div className="prose prose-sm max-w-none [&>*]:my-2 [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_a]:text-primary [&_a]:underline [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-surface-2 [&_pre]:bg-surface-2 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+        {!isEmptyStreaming && actions}
+      </div>
+      {msg.sources && msg.sources.length > 0 && (
+        <div className="ml-1 mt-1 max-w-[85%] rounded-xl bg-surface px-3 py-2 border-l border-primary/30">
+          <div className="text-[10px] text-fg-3 mb-1 uppercase tracking-wider">Sources</div>
+          <ul className="space-y-1">
+            {msg.sources.map((s, i) => (
+              <li key={i} className="text-xs">
+                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{s.title}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── main page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -578,6 +663,22 @@ export default function Home() {
     renameConversation(id, title)
     setConversations(loadConversations())
   }, [])
+
+  const deleteMessage = useCallback((msgId: string) => {
+    const next = messages.filter(m => m.id !== msgId)
+    setMessages(next)
+    if (!activeId) return
+    const existing = conversations.find(c => c.id === activeId)
+    if (!existing) return
+    if (next.length === 0) {
+      deleteConversation(activeId)
+      setConversations(loadConversations())
+      setActiveId(null)
+    } else {
+      upsertConversation({ ...existing, messages: next, updatedAt: Date.now() })
+      setConversations(loadConversations())
+    }
+  }, [messages, activeId, conversations])
 
   const clearAll = useCallback(() => {
     clearAllConversations()
@@ -777,32 +878,7 @@ export default function Home() {
               </div>
             )}
             {messages.map(m => (
-              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
-                  m.role === 'user'
-                    ? 'bg-primary/15 text-fg'
-                    : 'bg-surface text-fg'
-                }`}>
-                  {m.role === 'assistant' && m.content.length === 0 && streaming
-                    ? <span className="inline-flex gap-1 items-end h-4"><span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" /><span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" /><span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" /></span>
-                    : <div className="prose prose-sm max-w-none [&>*]:my-2 [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_a]:text-primary [&_a]:underline [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-surface-2 [&_pre]:bg-surface-2 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                      </div>
-                  }
-                  {m.sources && m.sources.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-white/10">
-                      <div className="text-[10px] text-fg-3 mb-1 uppercase tracking-wider">Sources</div>
-                      <ul className="space-y-1">
-                        {m.sources.map((s, i) => (
-                          <li key={i} className="text-xs">
-                            <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{s.title}</a>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <MessageItem key={m.id} msg={m} streaming={streaming} onDelete={deleteMessage} />
             ))}
           </div>
         </div>
