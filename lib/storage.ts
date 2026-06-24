@@ -47,17 +47,46 @@ export function relativeTime(ts: number): string {
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 //
-// 11 themes inherited from mighty-ai-qr-web. Names retain their guitar-amp
-// flavor (tweed/amber/british/oxblood/silver/pedalboard/blackface/plexi);
-// rename later if you want to neutralize the branding.
+// 15 popular developer themes (12 dark + 3 light). To add a theme: extend
+// this union, add a `[data-theme="<id>"]` block in app/globals.css, and
+// add a `{ id, label }` entry to THEMES in app/page.tsx.
 
-export type Theme = 'dark' | 'oled' | 'light' | 'tweed' | 'amber' | 'british' | 'oxblood' | 'silver' | 'pedalboard' | 'blackface' | 'plexi' | 'tweed-lt' | 'amber-lt' | 'british-lt' | 'oxblood-lt' | 'silver-lt' | 'pedalboard-lt' | 'blackface-lt' | 'plexi-lt'
+export type Theme =
+  // dark
+  | 'dracula'
+  | 'one-dark'
+  | 'tokyo-night'
+  | 'nord'
+  | 'solarized-dark'
+  | 'gruvbox-dark'
+  | 'monokai'
+  | 'catppuccin-mocha'
+  | 'night-owl'
+  | 'synthwave'
+  | 'github-dark'
+  | 'palenight'
+  // light
+  | 'solarized-light'
+  | 'github-light'
+  | 'catppuccin-latte'
 
 const THEME_KEY = 'quill_theme'
+const DEFAULT_THEME: Theme = 'dracula'
+
+const VALID_THEMES = new Set<Theme>([
+  'dracula', 'one-dark', 'tokyo-night', 'nord', 'solarized-dark',
+  'gruvbox-dark', 'monokai', 'catppuccin-mocha', 'night-owl',
+  'synthwave', 'github-dark', 'palenight',
+  'solarized-light', 'github-light', 'catppuccin-latte',
+])
 
 export function getTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark'
-  return (localStorage.getItem(THEME_KEY) as Theme) ?? 'dark'
+  if (typeof window === 'undefined') return DEFAULT_THEME
+  const stored = localStorage.getItem(THEME_KEY)
+  // Guard against stale IDs from older theme palettes — fall back to the
+  // default so a user with `quill_theme=tweed` (old guitar-amp palette)
+  // doesn't end up with a broken UI after pulling the new themes.
+  return stored && VALID_THEMES.has(stored as Theme) ? (stored as Theme) : DEFAULT_THEME
 }
 
 export function saveTheme(theme: Theme) {

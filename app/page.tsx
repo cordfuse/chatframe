@@ -11,28 +11,31 @@ import {
 } from '@/lib/storage'
 import type { ChatMessage, Conversation } from '@/lib/types'
 
-// ─── theme palette (inherited from mighty-ai-qr-web; rename labels later) ─────
+// ─── theme palette ───────────────────────────────────────────────────────────
+//
+// 15 popular dev themes (12 dark + 3 light). CSS for each lives in
+// app/globals.css under `[data-theme="<id>"]`. To add a theme, extend
+// the Theme type in lib/storage.ts, add the CSS block, then add an
+// entry here.
 
 const THEMES: { id: Theme; label: string }[] = [
-  { id: 'dark',           label: 'Dark' },
-  { id: 'oled',           label: 'OLED' },
-  { id: 'light',          label: 'Light' },
-  { id: 'tweed',          label: 'Tweed' },
-  { id: 'tweed-lt',       label: 'Tweed Light' },
-  { id: 'amber',          label: 'Amber' },
-  { id: 'amber-lt',       label: 'Amber Light' },
-  { id: 'british',        label: 'British' },
-  { id: 'british-lt',     label: 'British Light' },
-  { id: 'oxblood',        label: 'Oxblood' },
-  { id: 'oxblood-lt',     label: 'Oxblood Light' },
-  { id: 'silver',         label: 'Silver Panel' },
-  { id: 'silver-lt',      label: 'Silver Light' },
-  { id: 'pedalboard',     label: 'Pedalboard' },
-  { id: 'pedalboard-lt',  label: 'Pedalboard Light' },
-  { id: 'blackface',      label: 'Blackface' },
-  { id: 'blackface-lt',   label: 'Blackface Light' },
-  { id: 'plexi',          label: 'Plexi' },
-  { id: 'plexi-lt',       label: 'Plexi Light' },
+  // dark
+  { id: 'dracula',          label: 'Dracula' },
+  { id: 'one-dark',         label: 'One Dark' },
+  { id: 'tokyo-night',      label: 'Tokyo Night' },
+  { id: 'nord',             label: 'Nord' },
+  { id: 'solarized-dark',   label: 'Solarized Dark' },
+  { id: 'gruvbox-dark',     label: 'Gruvbox Dark' },
+  { id: 'monokai',          label: 'Monokai' },
+  { id: 'catppuccin-mocha', label: 'Catppuccin Mocha' },
+  { id: 'night-owl',        label: 'Night Owl' },
+  { id: 'synthwave',        label: "Synthwave '84" },
+  { id: 'github-dark',      label: 'GitHub Dark' },
+  { id: 'palenight',        label: 'Palenight' },
+  // light
+  { id: 'solarized-light',  label: 'Solarized Light' },
+  { id: 'github-light',     label: 'GitHub Light' },
+  { id: 'catppuccin-latte', label: 'Catppuccin Latte' },
 ]
 
 // ─── icons ───────────────────────────────────────────────────────────────────
@@ -117,7 +120,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>('dracula')
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; title: string } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)

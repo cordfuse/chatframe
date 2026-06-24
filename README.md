@@ -62,7 +62,13 @@ Intentional out-of-scope (re-add when you need them):
 
 ## Theme
 
-19 themes, picked via the in-app settings dialog. Labels (Tweed, Plexi, Blackface, etc.) are inherited from the upstream guitar-amp product — rename in `app/page.tsx` if you want neutrality.
+15 popular developer themes, picked via the in-app settings dialog. Default = Dracula.
+
+**Dark:** Dracula · One Dark · Tokyo Night · Nord · Solarized Dark · Gruvbox Dark · Monokai · Catppuccin Mocha · Night Owl · Synthwave '84 · GitHub Dark · Palenight
+
+**Light:** Solarized Light · GitHub Light · Catppuccin Latte
+
+CSS variables live in `app/globals.css` under `[data-theme="<id>"]` blocks. Add a theme by extending the `Theme` union in `lib/storage.ts`, adding the CSS block, and adding a `{ id, label }` entry to `THEMES` in `app/page.tsx`.
 
 ## Origin
 
