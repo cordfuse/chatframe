@@ -191,18 +191,20 @@ function CodeBlock({ children }: { children?: React.ReactNode }) {
       setTimeout(() => setCopied(false), 1500)
     } catch { /* clipboard denied */ }
   }
+  // Button lives on the OUTER wrapper (not the <pre>) so it stays pinned
+  // to the visible corner while the pre scrolls horizontally underneath.
   return (
-    <pre className="relative">
+    <div className="relative my-2">
       <button
         onClick={onCopy}
         aria-label={copied ? 'Copied code' : 'Copy code'}
         title={copied ? 'Copied' : 'Copy code'}
-        className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-surface text-fg-3 hover:bg-surface-3 hover:text-fg transition-colors"
+        className="absolute top-1.5 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-surface text-fg-3 hover:bg-surface-3 hover:text-fg transition-colors"
       >
         {copied ? <CheckIcon /> : <CopyIcon />}
       </button>
-      {children}
-    </pre>
+      <pre>{children}</pre>
+    </div>
   )
 }
 
