@@ -169,3 +169,114 @@ export function setWebSearchEnabled(enabled: boolean) {
   if (enabled) localStorage.setItem(WEB_SEARCH_KEY, '1')
   else localStorage.removeItem(WEB_SEARCH_KEY)
 }
+
+// ─── Generation settings (user overrides — operator defaults via env) ────────
+//
+// All three are `null` when the user hasn't set them; in that case the server
+// falls back to QUILL_SYSTEM_PROMPT / QUILL_TEMPERATURE / QUILL_MAX_TOKENS env
+// vars, then to hardcoded defaults. Read/written as strings since localStorage
+// is string-only — callers handle conversion.
+
+const SYSTEM_PROMPT_KEY = 'quill_system_prompt'
+const TEMPERATURE_KEY   = 'quill_temperature'
+const MAX_TOKENS_KEY    = 'quill_max_tokens'
+
+export function getCustomSystemPrompt(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(SYSTEM_PROMPT_KEY)
+}
+export function setCustomSystemPrompt(s: string | null) {
+  if (s && s.trim().length > 0) localStorage.setItem(SYSTEM_PROMPT_KEY, s)
+  else localStorage.removeItem(SYSTEM_PROMPT_KEY)
+}
+
+export function getTemperature(): number | null {
+  if (typeof window === 'undefined') return null
+  const v = localStorage.getItem(TEMPERATURE_KEY)
+  if (v === null) return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+export function setTemperature(t: number | null) {
+  if (t === null) localStorage.removeItem(TEMPERATURE_KEY)
+  else localStorage.setItem(TEMPERATURE_KEY, String(t))
+}
+
+export function getMaxTokens(): number | null {
+  if (typeof window === 'undefined') return null
+  const v = localStorage.getItem(MAX_TOKENS_KEY)
+  if (v === null) return null
+  const n = parseInt(v, 10)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+export function setMaxTokens(t: number | null) {
+  if (t === null) localStorage.removeItem(MAX_TOKENS_KEY)
+  else localStorage.setItem(MAX_TOKENS_KEY, String(t))
+}
+
+// ─── Send key preference ────────────────────────────────────────────────────
+
+export type SendKey = 'enter' | 'mod-enter'
+const SEND_KEY_KEY = 'quill_send_key'
+
+export function getSendKey(): SendKey {
+  if (typeof window === 'undefined') return 'enter'
+  return localStorage.getItem(SEND_KEY_KEY) === 'mod-enter' ? 'mod-enter' : 'enter'
+}
+export function setSendKey(k: SendKey) {
+  localStorage.setItem(SEND_KEY_KEY, k)
+}
+
+// ─── Export / Import / Reset ─────────────────────────────────────────────────
+
+export interface QuillExport {
+  quill_export_version: 1
+  exported_at: string
+  conversations: Conversation[]
+}
+
+export function exportAll(): QuillExport {
+  return {
+    quill_export_version: 1,
+    exported_at: new Date().toISOString(),
+    conversations: loadConversations(),
+  }
+}
+
+export interface ImportResult { imported: number; skipped: number; total: number }
+
+export function importConversationsJson(json: string): ImportResult {
+  const parsed = JSON.parse(json)
+  if (typeof parsed !== 'object' || parsed === null) throw new Error('Invalid file')
+  if (parsed.quill_export_version !== 1) throw new Error('Unsupported export version')
+  if (!Array.isArray(parsed.conversations)) throw new Error('No conversations in file')
+
+  const existing = loadConversations()
+  const existingIds = new Set(existing.map(c => c.id))
+  let imported = 0
+  let skipped = 0
+  for (const conv of parsed.conversations as Conversation[]) {
+    if (!conv?.id || typeof conv.id !== 'string') { skipped++; continue }
+    if (existingIds.has(conv.id)) { skipped++; continue }
+    existing.push(conv)
+    existingIds.add(conv.id)
+    imported++
+  }
+  existing.sort((a, b) => b.updatedAt - a.updatedAt)
+  saveConversations(existing)
+  return { imported, skipped, total: parsed.conversations.length }
+}
+
+// Wipes every quill_* localStorage key (conversations, theme, provider, model,
+// web search, generation settings, send key). Also drops the auth token +
+// device id so the next session starts completely fresh.
+export function resetAllData() {
+  if (typeof window === 'undefined') return
+  const toRemove: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (!k) continue
+    if (k.startsWith('quill_') || k === 'auth_token' || k === 'device_id') toRemove.push(k)
+  }
+  for (const k of toRemove) localStorage.removeItem(k)
+}

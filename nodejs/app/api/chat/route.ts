@@ -10,6 +10,30 @@ const DEFAULT_SYSTEM_PROMPT = process.env.QUILL_SYSTEM_PROMPT ?? 'You are a help
 const ENV_PROVIDER = process.env.QUILL_PROVIDER ?? 'anthropic'
 const ENV_MODEL = process.env.QUILL_MODEL ?? 'claude-sonnet-4-6'
 
+// Generation defaults — env var (operator deploy default) → hardcoded fallback.
+// Client may override per-request via the request body; resolveGen() applies
+// request → env → hardcoded.
+const HARDCODED_TEMPERATURE = 1.0
+const HARDCODED_MAX_TOKENS  = 4096
+function envNumber(name: string): number | undefined {
+  const raw = process.env[name]
+  if (raw === undefined || raw === '') return undefined
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : undefined
+}
+function resolveTemperature(clientValue: unknown): number {
+  if (typeof clientValue === 'number' && Number.isFinite(clientValue)) return clientValue
+  return envNumber('QUILL_TEMPERATURE') ?? HARDCODED_TEMPERATURE
+}
+function resolveMaxTokens(clientValue: unknown): number {
+  if (typeof clientValue === 'number' && clientValue > 0) return Math.floor(clientValue)
+  return envNumber('QUILL_MAX_TOKENS') ?? HARDCODED_MAX_TOKENS
+}
+function resolveSystemPrompt(clientValue: unknown): string {
+  if (typeof clientValue === 'string' && clientValue.trim().length > 0) return clientValue
+  return DEFAULT_SYSTEM_PROMPT
+}
+
 export async function POST(request: NextRequest) {
   console.log('[chat] request received')
   const deviceId = getDeviceIdFromRequest(request.headers.get('Authorization'))
@@ -19,7 +43,14 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { messages, stream: wantStream, provider: clientProvider, model: clientModel, webSearch } = body
+  const {
+    messages, stream: wantStream,
+    provider: clientProvider, model: clientModel,
+    webSearch,
+    systemPrompt: clientSystemPrompt,
+    temperature: clientTemperature,
+    maxTokens: clientMaxTokens,
+  } = body
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ error: 'Invalid messages' }, { status: 400 })
@@ -99,9 +130,12 @@ export async function POST(request: NextRequest) {
       error: 'Web search is on but TAVILY_API_KEY isn\'t set on the server.',
     }, { status: 503 })
   }
-  const runOpts = { webSearch: wantWebSearch }
+  const systemPrompt = resolveSystemPrompt(clientSystemPrompt)
+  const temperature  = resolveTemperature(clientTemperature)
+  const maxTokens    = resolveMaxTokens(clientMaxTokens)
+  const runOpts = { webSearch: wantWebSearch, temperature, maxTokens }
 
-  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch}`)
+  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch} temp=${temperature} maxTok=${maxTokens}`)
 
   if (wantStream) {
     const enc = new TextEncoder()
@@ -110,7 +144,7 @@ export async function POST(request: NextRequest) {
         const send = (obj: unknown) =>
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`))
         try {
-          for await (const event of runChatStream(messages, provider, model, DEFAULT_SYSTEM_PROMPT, runOpts)) {
+          for await (const event of runChatStream(messages, provider, model, systemPrompt, runOpts)) {
             // runChatStream yields typed events directly — forward as-is.
             send(event)
           }
@@ -134,7 +168,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runChat(messages, provider, model, DEFAULT_SYSTEM_PROMPT, runOpts)
+    const result = await runChat(messages, provider, model, systemPrompt, runOpts)
     console.log('[chat] done')
     return NextResponse.json(result)
   } catch (err) {

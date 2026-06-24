@@ -10,6 +10,11 @@ import {
   clearAllConversations, autoTitle, relativeTime, getTheme, saveTheme, type Theme,
   getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel,
   getWebSearchEnabled, setWebSearchEnabled,
+  getCustomSystemPrompt, setCustomSystemPrompt,
+  getTemperature, setTemperature,
+  getMaxTokens, setMaxTokens,
+  getSendKey, setSendKey, type SendKey,
+  exportAll, importConversationsJson, resetAllData,
 } from '@/lib/storage'
 import type { ChatMessage, Conversation, Attachment } from '@/lib/types'
 
@@ -161,17 +166,40 @@ function DeleteConfirmModal({ label, onConfirm, onCancel }: { label: string; onC
 
 // ─── settings panel (right drawer) ───────────────────────────────────────────
 
-function SettingsPanel({ theme, onTheme, providers, selectedProvider, onProvider, onClose }: {
+function SettingsPanel({
+  theme, onTheme,
+  providers, selectedProvider, onProvider,
+  customSystemPrompt, onSystemPrompt,
+  customTemperature, onTemperature,
+  customMaxTokens, onMaxTokens,
+  sendKeyPref, onSendKey,
+  onExport, onImport, onResetAll,
+  onClose,
+}: {
   theme: Theme
   onTheme: (t: Theme) => void
   providers: AvailableProvider[]
   selectedProvider: string
   onProvider: (p: string) => void
+  customSystemPrompt: string | null
+  onSystemPrompt: (s: string | null) => void
+  customTemperature: number | null
+  onTemperature: (t: number | null) => void
+  customMaxTokens: number | null
+  onMaxTokens: (t: number | null) => void
+  sendKeyPref: SendKey
+  onSendKey: (k: SendKey) => void
+  onExport: () => void
+  onImport: () => void
+  onResetAll: () => void
   onClose: () => void
 }) {
   const [closing, setClosing] = useState(false)
   const [themeOpen, setThemeOpen] = useState(false)
   const [providerOpen, setProviderOpen] = useState(false)
+  // Local draft state for the system prompt textarea so the user can type
+  // without each keystroke writing to localStorage. Commits on blur.
+  const [promptDraft, setPromptDraft] = useState(customSystemPrompt ?? '')
 
   const handleClose = () => {
     setClosing(true)
@@ -311,6 +339,125 @@ function SettingsPanel({ theme, onTheme, providers, selectedProvider, onProvider
               )}
             </div>
           )}
+
+          {/* System prompt */}
+          <div>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">System prompt</p>
+            <textarea
+              value={promptDraft}
+              onChange={e => setPromptDraft(e.target.value)}
+              onBlur={() => {
+                const trimmed = promptDraft.trim()
+                onSystemPrompt(trimmed.length > 0 ? trimmed : null)
+              }}
+              placeholder='Server default — set QUILL_SYSTEM_PROMPT in .env.local, or override per-user here.'
+              rows={3}
+              className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg placeholder:text-fg-4 outline-none focus:ring-1 focus:ring-primary/40 resize-y min-h-[4.5rem]"
+            />
+            {customSystemPrompt && (
+              <button
+                onClick={() => { setPromptDraft(''); onSystemPrompt(null) }}
+                className="mt-1 text-[10px] text-fg-4 hover:text-fg-2 transition-colors"
+              >
+                Clear override → use server default
+              </button>
+            )}
+          </div>
+
+          {/* Temperature */}
+          <div>
+            <div className="flex items-baseline justify-between mb-1">
+              <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider">Temperature</p>
+              <span className="text-[10px] text-fg-4">
+                {customTemperature !== null ? customTemperature.toFixed(2) : 'default'}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0} max={2} step={0.05}
+              value={customTemperature ?? 1}
+              onChange={e => onTemperature(Number(e.target.value))}
+              className="w-full accent-[color:var(--primary)]"
+            />
+            {customTemperature !== null && (
+              <button
+                onClick={() => onTemperature(null)}
+                className="mt-1 text-[10px] text-fg-4 hover:text-fg-2 transition-colors"
+              >
+                Clear override → use server default
+              </button>
+            )}
+          </div>
+
+          {/* Max tokens */}
+          <div>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Max response tokens</p>
+            <input
+              type="number"
+              min={1} max={32000} step={256}
+              value={customMaxTokens ?? ''}
+              onChange={e => {
+                const v = e.target.value.trim()
+                if (v === '') onMaxTokens(null)
+                else { const n = parseInt(v, 10); if (Number.isFinite(n) && n > 0) onMaxTokens(n) }
+              }}
+              placeholder="Server default"
+              className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg placeholder:text-fg-4 outline-none focus:ring-1 focus:ring-primary/40"
+            />
+          </div>
+
+          {/* Send key */}
+          <div>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Send with</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(['enter', 'mod-enter'] as const).map(k => {
+                const isActive = sendKeyPref === k
+                return (
+                  <button
+                    key={k}
+                    onClick={() => onSendKey(k)}
+                    className={`rounded-lg border px-3 py-2 text-xs transition-colors ${
+                      isActive
+                        ? 'border-primary/40 bg-primary/10 text-fg'
+                        : 'border-white/10 bg-surface-2 text-fg-2 hover:bg-surface-3 hover:text-fg'
+                    }`}
+                  >
+                    {k === 'enter' ? 'Enter' : '⌘/Ctrl + Enter'}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-1 text-[10px] text-fg-4">
+              {sendKeyPref === 'enter'
+                ? 'Shift+Enter for a new line'
+                : 'Plain Enter for a new line'}
+            </p>
+          </div>
+
+          {/* Data: Export / Import / Reset */}
+          <div>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Data</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={onExport}
+                className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+              >
+                Export…
+              </button>
+              <button
+                onClick={onImport}
+                className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+              >
+                Import…
+              </button>
+            </div>
+            <button
+              onClick={onResetAll}
+              className="mt-2 w-full rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400 hover:bg-red-500/20 transition-colors"
+            >
+              Reset all data
+            </button>
+          </div>
         </div>
 
         <div className="border-t border-white/10 px-5 py-3 flex items-center justify-between text-[10px] text-fg-4">
@@ -698,6 +845,12 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   const [webSearchAvailable, setWebSearchAvailable] = useState(false)
   const [webSearch, setWebSearch] = useState(false)
   const [toolRunning, setToolRunning] = useState<{ name: string; query?: string } | null>(null)
+  // Generation settings: null = use server default. UI shows a placeholder
+  // hint when unset so user knows what value will actually be used.
+  const [customSystemPrompt, setCustomSystemPromptState] = useState<string | null>(null)
+  const [customTemperature, setCustomTemperatureState] = useState<number | null>(null)
+  const [customMaxTokens, setCustomMaxTokensState] = useState<number | null>(null)
+  const [sendKeyPref, setSendKeyPrefState] = useState<SendKey>('enter')
   const [provider, setProviderState] = useState<string>('anthropic')
   const [model, setModelState] = useState<string>('claude-sonnet-4-6')
   const [modelOpen, setModelOpen] = useState(false)
@@ -711,6 +864,7 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const photosInputRef = useRef<HTMLInputElement>(null)
   const documentInputRef = useRef<HTMLInputElement>(null)
+  const importJsonRef = useRef<HTMLInputElement>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -726,6 +880,11 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
     document.documentElement.setAttribute('data-theme', t)
     const loaded = loadConversations()
     setConversations(loaded)
+    // Generation prefs + send-key from localStorage.
+    setCustomSystemPromptState(getCustomSystemPrompt())
+    setCustomTemperatureState(getTemperature())
+    setCustomMaxTokensState(getMaxTokens())
+    setSendKeyPrefState(getSendKey())
     // Hydrate the active conversation from the URL (e.g. /c/<id> hard load).
     // If the id doesn't exist anymore (deleted on another tab, stale link),
     // silently fall back to / so the user sees the empty state.
@@ -799,6 +958,23 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   const handleWebSearch = useCallback((on: boolean) => {
     setWebSearch(on)
     setWebSearchEnabled(on)
+  }, [])
+
+  const handleSystemPrompt = useCallback((s: string | null) => {
+    setCustomSystemPromptState(s)
+    setCustomSystemPrompt(s)
+  }, [])
+  const handleTemperature = useCallback((t: number | null) => {
+    setCustomTemperatureState(t)
+    setTemperature(t)
+  }, [])
+  const handleMaxTokens = useCallback((t: number | null) => {
+    setCustomMaxTokensState(t)
+    setMaxTokens(t)
+  }, [])
+  const handleSendKey = useCallback((k: SendKey) => {
+    setSendKeyPrefState(k)
+    setSendKey(k)
   }, [])
 
   // ── auto-scroll on new content ──
@@ -1027,7 +1203,12 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           ))
         },
         abort.signal,
-        { provider, model, webSearch },
+        {
+          provider, model, webSearch,
+          systemPrompt: customSystemPrompt ?? undefined,
+          temperature: customTemperature ?? undefined,
+          maxTokens: customMaxTokens ?? undefined,
+        },
         {
           onToolRunning: info => setToolRunning(info),
           onSources: sources => {
@@ -1075,7 +1256,7 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
       setToolRunning(null)
       abortRef.current = null
     }
-  }, [activeId, conversations, provider, model, webSearch, buildWireMessages, updateUrl])
+  }, [activeId, conversations, provider, model, webSearch, customSystemPrompt, customTemperature, customMaxTokens, buildWireMessages, updateUrl])
 
   const send = useCallback(async () => {
     const text = input.trim()
@@ -1125,7 +1306,17 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   }, [messages, streaming, runFlowWith])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key !== 'Enter') return
+    if (sendKeyPref === 'mod-enter') {
+      // Cmd/Ctrl+Enter sends; plain Enter inserts a newline.
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault()
+        send()
+      }
+      return
+    }
+    // Default: Enter sends, Shift+Enter inserts a newline.
+    if (!e.shiftKey) {
       e.preventDefault()
       send()
     }
@@ -1440,6 +1631,27 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
         </div>
       </div>
 
+      {/* hidden import file input — triggered by Settings "Import…" button */}
+      <input
+        ref={importJsonRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={async e => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (!f) return
+          try {
+            const text = await f.text()
+            const res = importConversationsJson(text)
+            setConversations(loadConversations())
+            setError(`Imported ${res.imported} conversation${res.imported === 1 ? '' : 's'} (${res.skipped} skipped as duplicates or invalid).`)
+          } catch (err) {
+            setError(`Import failed: ${err instanceof Error ? err.message : String(err)}`)
+          }
+        }}
+      />
+
       {settingsOpen && (
         <SettingsPanel
           theme={theme}
@@ -1447,6 +1659,32 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           providers={providers}
           selectedProvider={provider}
           onProvider={handleProvider}
+          customSystemPrompt={customSystemPrompt}
+          onSystemPrompt={handleSystemPrompt}
+          customTemperature={customTemperature}
+          onTemperature={handleTemperature}
+          customMaxTokens={customMaxTokens}
+          onMaxTokens={handleMaxTokens}
+          sendKeyPref={sendKeyPref}
+          onSendKey={handleSendKey}
+          onExport={() => {
+            const data = exportAll()
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `quill-export-${new Date().toISOString().slice(0, 10)}.json`
+            a.click()
+            URL.revokeObjectURL(url)
+          }}
+          onImport={() => importJsonRef.current?.click()}
+          onResetAll={() => setConfirmDelete({
+            label: 'all data (every conversation, theme, provider, model preference, generation settings, and session token)',
+            doDelete: () => {
+              resetAllData()
+              window.location.replace('/')
+            },
+          })}
           onClose={() => setSettingsOpen(false)}
         />
       )}

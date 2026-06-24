@@ -144,6 +144,9 @@ export interface ChatOpts {
   provider?: string
   model?: string
   webSearch?: boolean
+  systemPrompt?: string
+  temperature?: number
+  maxTokens?: number
 }
 
 // Events the streaming chat endpoint can emit (beyond plain text deltas).
