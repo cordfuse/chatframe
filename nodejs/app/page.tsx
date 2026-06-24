@@ -4,13 +4,13 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { v4 as uuidv4 } from 'uuid'
-import { sendChatStream, initAuth, getProviders, type AvailableProvider } from '@/lib/api'
+import { sendChatStream, initAuth, getProviders, type AvailableProvider, type MultimodalMessage, type ContentBlock } from '@/lib/api'
 import {
   loadConversations, upsertConversation, deleteConversation, renameConversation,
   clearAllConversations, autoTitle, relativeTime, getTheme, saveTheme, type Theme,
   getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel,
 } from '@/lib/storage'
-import type { ChatMessage, Conversation } from '@/lib/types'
+import type { ChatMessage, Conversation, Attachment } from '@/lib/types'
 
 // ─── theme palette ───────────────────────────────────────────────────────────
 //
@@ -115,6 +115,18 @@ const CheckIcon = () => (
 const TrashSmIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
 )
+const AttachIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+)
+const CameraSmIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+)
+const PhotoIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+)
+const DocumentIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+)
 
 // ─── delete-confirm modal ────────────────────────────────────────────────────
 
@@ -185,11 +197,13 @@ function SettingsPanel({ theme, onTheme, providers, selectedProvider, onProvider
                   )}
                   <ChevronIcon open={providerOpen} />
                 </button>
-                {providerOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setProviderOpen(false)} />
-                    <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[60vh] overflow-y-auto">
-                      {providers.map(p => {
+                {providerOpen && (() => {
+                  const cloud = providers.filter(p => p.category === 'cloud')
+                  const local = providers.filter(p => p.category === 'local')
+                  const renderGroup = (label: string, items: typeof providers) => items.length > 0 && (
+                    <div key={label}>
+                      <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{label}</p>
+                      {items.map(p => {
                         const isActive = selectedProvider === p.id
                         return (
                           <button
@@ -207,12 +221,26 @@ function SettingsPanel({ theme, onTheme, providers, selectedProvider, onProvider
                         )
                       })}
                     </div>
-                  </>
-                )}
+                  )
+                  return (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setProviderOpen(false)} />
+                      <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[60vh] overflow-y-auto">
+                        {renderGroup('Cloud', cloud)}
+                        {renderGroup('Local', local)}
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
-              {activeProvider && !activeProvider.available && (
+              {activeProvider && !activeProvider.available && activeProvider.category === 'cloud' && (
                 <p className="mt-1.5 text-[10px] text-fg-4">
-                  Set <code className="font-mono">{providers.find(p => p.id === selectedProvider)?.id.toUpperCase()}_API_KEY</code> in <code className="font-mono">.env.local</code> and restart the server.
+                  Set <code className="font-mono">{activeProvider.id.toUpperCase()}_API_KEY</code> in <code className="font-mono">.env.local</code> and restart the server.
+                </p>
+              )}
+              {activeProvider && activeProvider.category === 'local' && (
+                <p className="mt-1.5 text-[10px] text-fg-4">
+                  Local server expected at the default port. Override with <code className="font-mono">{activeProvider.id.toUpperCase()}_BASE_URL</code> in <code className="font-mono">.env.local</code> if needed.
                 </p>
               )}
             </div>
@@ -490,8 +518,20 @@ function MessageItem({ msg, streaming, onDelete }: {
     return (
       <div className="group flex items-end justify-end gap-1.5">
         {actions}
-        <div className="max-w-[75%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-on-primary whitespace-pre-wrap break-words">
-          {msg.content}
+        <div className="max-w-[75%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-on-primary whitespace-pre-wrap break-words space-y-2">
+          {msg.attachments && msg.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {msg.attachments.map((att, i) => att.kind === 'image' && att.dataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={att.dataUrl} alt={att.name} className="max-h-40 rounded-lg border border-white/10 object-cover" />
+              ) : (
+                <div key={i} className="flex items-center gap-2 rounded-md bg-on-primary/10 px-2 py-1 text-[11px]">
+                  <DocumentIcon /> {att.name}
+                </div>
+              ))}
+            </div>
+          )}
+          {msg.content && <div>{msg.content}</div>}
         </div>
       </div>
     )
@@ -552,6 +592,11 @@ export default function Home() {
   const [provider, setProviderState] = useState<string>('anthropic')
   const [model, setModelState] = useState<string>('claude-sonnet-4-6')
   const [modelOpen, setModelOpen] = useState(false)
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const photosInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -692,14 +737,55 @@ export default function Home() {
     setStreaming(false)
   }, [])
 
+  // ── attachment handlers ──
+  const onPickFile = useCallback((kind: Attachment['kind']) => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''  // allow re-selecting the same file later
+    if (!f) return
+    // Cap to ~5MB per file to keep base64 payloads sane.
+    if (f.size > 5 * 1024 * 1024) {
+      setError(`Attachment "${f.name}" is too large (max 5 MB).`)
+      return
+    }
+    let dataUrl: string | undefined
+    if (kind === 'image') {
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(f)
+      }).catch(() => undefined)
+    }
+    const att: Attachment = { kind, name: f.name, mimeType: f.type || 'application/octet-stream', size: f.size, dataUrl }
+    setPendingAttachments(prev => [...prev, att])
+  }, [])
+
+  const removePendingAttachment = useCallback((idx: number) => {
+    setPendingAttachments(prev => prev.filter((_, i) => i !== idx))
+  }, [])
+
   const send = useCallback(async () => {
     const text = input.trim()
-    if (!text || streaming) return
+    if ((!text && pendingAttachments.length === 0) || streaming) return
 
-    const userMsg: ChatMessage = { id: uuidv4(), role: 'user', content: text }
+    // Document attachments aren't wired to the model yet — token.js doesn't
+    // expose a cross-provider document content block. Surface a clear error
+    // instead of silently dropping them.
+    const hasDocs = pendingAttachments.some(a => a.kind === 'document')
+    if (hasDocs) {
+      setError("Document attachments aren't supported yet — remove them to send. (Image attachments work.)")
+      return
+    }
+
+    const attachmentsForMessage = pendingAttachments.slice()
+    const userMsg: ChatMessage = {
+      id: uuidv4(), role: 'user', content: text,
+      attachments: attachmentsForMessage.length > 0 ? attachmentsForMessage : undefined,
+    }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setInput('')
+    setPendingAttachments([])
     setError(null)
     setStreaming(true)
 
@@ -710,9 +796,26 @@ export default function Home() {
     const assistantMsg: ChatMessage = { id: assistantId, role: 'assistant', content: '' }
     setMessages([...newMessages, assistantMsg])
 
+    // Build the wire messages — convert any message with attachments into
+    // an OpenAI-style multimodal content array so token.js can route it
+    // to the active provider's native image format.
+    const wireMessages: MultimodalMessage[] = newMessages.map(m => {
+      if (m.attachments && m.attachments.length > 0) {
+        const blocks: ContentBlock[] = []
+        if (m.content) blocks.push({ type: 'text', text: m.content })
+        for (const att of m.attachments) {
+          if (att.kind === 'image' && att.dataUrl) {
+            blocks.push({ type: 'image_url', image_url: { url: att.dataUrl } })
+          }
+        }
+        return { role: m.role, content: blocks }
+      }
+      return { role: m.role, content: m.content }
+    })
+
     try {
       const res = await sendChatStream(
-        newMessages.map(({ role, content }) => ({ role, content })),
+        wireMessages,
         delta => {
           setMessages(prev => prev.map(m =>
             m.id === assistantId ? { ...m, content: m.content + delta } : m
@@ -752,7 +855,7 @@ export default function Home() {
       setStreaming(false)
       abortRef.current = null
     }
-  }, [input, streaming, messages, activeId, conversations, provider, model])
+  }, [input, streaming, messages, activeId, conversations, provider, model, pendingAttachments])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -852,7 +955,36 @@ export default function Home() {
 
         {/* composer */}
         <div className="px-4 pb-4 pt-2 shrink-0">
+          {/* hidden file inputs */}
+          <input ref={cameraInputRef}   type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickFile('image')} />
+          <input ref={photosInputRef}   type="file" accept="image/*"                         className="hidden" onChange={onPickFile('image')} />
+          <input ref={documentInputRef} type="file" accept=".pdf,.txt,.md,.doc,.docx,.json,.csv,.xml,.html,.rtf" className="hidden" onChange={onPickFile('document')} />
+
           <div className="max-w-3xl mx-auto rounded-3xl border border-white/10 bg-surface transition-colors focus-within:border-primary/40">
+            {/* pending attachment chips (above the textarea) */}
+            {pendingAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-3 pt-3">
+                {pendingAttachments.map((att, idx) => (
+                  <div key={idx} className="group flex items-center gap-2 rounded-lg border border-white/10 bg-surface-2 px-2 py-1 text-xs text-fg-2">
+                    {att.kind === 'image' && att.dataUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={att.dataUrl} alt={att.name} className="h-6 w-6 rounded object-cover" />
+                    ) : (
+                      <span className="text-fg-4"><DocumentIcon /></span>
+                    )}
+                    <span className="truncate max-w-[10rem]">{att.name}</span>
+                    <button
+                      onClick={() => removePendingAttachment(idx)}
+                      title="Remove"
+                      className="text-fg-4 hover:text-red-400 transition-colors"
+                    >
+                      <CloseIcon />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <textarea
               ref={textareaRef}
               value={input}
@@ -865,6 +997,44 @@ export default function Home() {
               disabled={streaming}
             />
             <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
+              {/* attach button + model pill on the left */}
+              <div className="flex items-center gap-1.5">
+                {/* attach button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setAttachMenuOpen(o => !o)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors"
+                    title="Attach"
+                    aria-label="Attach a file"
+                  >
+                    <AttachIcon />
+                  </button>
+                  {attachMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setAttachMenuOpen(false)} />
+                      <div className="absolute left-0 bottom-full z-40 mb-1 min-w-[10rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden">
+                        <button
+                          onClick={() => { setAttachMenuOpen(false); cameraInputRef.current?.click() }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+                        >
+                          <CameraSmIcon /> Camera
+                        </button>
+                        <button
+                          onClick={() => { setAttachMenuOpen(false); photosInputRef.current?.click() }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+                        >
+                          <PhotoIcon /> Photos
+                        </button>
+                        <button
+                          onClick={() => { setAttachMenuOpen(false); documentInputRef.current?.click() }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+                        >
+                          <DocumentIcon /> Documents
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               {/* Model pill — opens upward from the composer */}
               <div>
                 {providers.length > 0 && (() => {
@@ -908,6 +1078,7 @@ export default function Home() {
                   )
                 })()}
               </div>
+              </div>
               {streaming ? (
                 <button
                   onClick={stop}
@@ -919,7 +1090,7 @@ export default function Home() {
               ) : (
                 <button
                   onClick={send}
-                  disabled={!input.trim()}
+                  disabled={!input.trim() && pendingAttachments.length === 0}
                   title="Send"
                   className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-on-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                 >

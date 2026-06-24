@@ -1,6 +1,16 @@
 import { v4 as uuidv4 } from 'uuid'
 import type { Message } from './types'
 
+// OpenAI-style multimodal content. Used for messages that include images.
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+
+export interface MultimodalMessage {
+  role: 'user' | 'assistant'
+  content: string | ContentBlock[]
+}
+
 export interface ChatResponse {
   message: string
   sources?: { title: string; url: string }[]
@@ -49,6 +59,7 @@ export interface ProviderModel {
 export interface AvailableProvider {
   id: string
   label: string
+  category: 'cloud' | 'local'
   available: boolean
   defaultModel: string
   models: ProviderModel[]
@@ -78,7 +89,7 @@ export interface ChatOpts {
   model?: string
 }
 
-export async function sendChat(messages: Message[], signal?: AbortSignal, opts: ChatOpts = {}): Promise<ChatResponse> {
+export async function sendChat(messages: Message[] | MultimodalMessage[], signal?: AbortSignal, opts: ChatOpts = {}): Promise<ChatResponse> {
   let token = getToken()
   if (!token) {
     await authenticate()
@@ -118,7 +129,7 @@ export async function sendChat(messages: Message[], signal?: AbortSignal, opts: 
 }
 
 export async function sendChatStream(
-  messages: Message[],
+  messages: Message[] | MultimodalMessage[],
   onDelta: (text: string) => void,
   signal?: AbortSignal,
   opts: ChatOpts = {},

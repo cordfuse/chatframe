@@ -31,19 +31,25 @@ export interface ModelInfo {
   label: string
 }
 
+export type ProviderCategory = 'cloud' | 'local'
+
 export interface ProviderInfo {
-  id: Provider
+  id: string                    // display id — unique key, not a token.js Provider for local
   label: string
-  envKey: string         // env var that must be set for this provider to be usable
+  category: ProviderCategory
+  tokenjsProvider: Provider     // actual token.js provider used for dispatch
+  envKey?: string               // cloud: env var with the API key
+  baseURLEnv?: string           // local: env var that overrides the baseURL
+  defaultBaseURL?: string       // local: fallback baseURL when env unset
   defaultModel: string
   models: ModelInfo[]
 }
 
 export const PROVIDERS: ProviderInfo[] = [
+  // ── cloud ──
   {
-    id: 'anthropic',
-    label: 'Anthropic',
-    envKey: 'ANTHROPIC_API_KEY',
+    id: 'anthropic', label: 'Anthropic', category: 'cloud',
+    tokenjsProvider: 'anthropic', envKey: 'ANTHROPIC_API_KEY',
     defaultModel: 'claude-sonnet-4-6',
     models: [
       { id: 'claude-opus-4-7',           label: 'Claude Opus 4.7' },
@@ -52,22 +58,20 @@ export const PROVIDERS: ProviderInfo[] = [
     ],
   },
   {
-    id: 'openai',
-    label: 'OpenAI',
-    envKey: 'OPENAI_API_KEY',
+    id: 'openai', label: 'OpenAI', category: 'cloud',
+    tokenjsProvider: 'openai', envKey: 'OPENAI_API_KEY',
     defaultModel: 'gpt-4o',
     models: [
-      { id: 'gpt-4o',         label: 'GPT-4o' },
-      { id: 'gpt-4o-mini',    label: 'GPT-4o mini' },
-      { id: 'gpt-4-turbo',    label: 'GPT-4 Turbo' },
-      { id: 'o1-preview',     label: 'o1 preview' },
-      { id: 'o1-mini',        label: 'o1 mini' },
+      { id: 'gpt-4o',      label: 'GPT-4o' },
+      { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
+      { id: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+      { id: 'o1-preview',  label: 'o1 preview' },
+      { id: 'o1-mini',     label: 'o1 mini' },
     ],
   },
   {
-    id: 'gemini',
-    label: 'Google Gemini',
-    envKey: 'GEMINI_API_KEY',
+    id: 'gemini', label: 'Google Gemini', category: 'cloud',
+    tokenjsProvider: 'gemini', envKey: 'GEMINI_API_KEY',
     defaultModel: 'gemini-2.0-flash-001',
     models: [
       { id: 'gemini-2.0-flash-001', label: 'Gemini 2.0 Flash' },
@@ -76,9 +80,8 @@ export const PROVIDERS: ProviderInfo[] = [
     ],
   },
   {
-    id: 'groq',
-    label: 'Groq',
-    envKey: 'GROQ_API_KEY',
+    id: 'groq', label: 'Groq', category: 'cloud',
+    tokenjsProvider: 'groq', envKey: 'GROQ_API_KEY',
     defaultModel: 'llama-3.3-70b-versatile',
     models: [
       { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
@@ -87,9 +90,8 @@ export const PROVIDERS: ProviderInfo[] = [
     ],
   },
   {
-    id: 'mistral',
-    label: 'Mistral',
-    envKey: 'MISTRAL_API_KEY',
+    id: 'mistral', label: 'Mistral', category: 'cloud',
+    tokenjsProvider: 'mistral', envKey: 'MISTRAL_API_KEY',
     defaultModel: 'mistral-large-latest',
     models: [
       { id: 'mistral-large-latest', label: 'Mistral Large' },
@@ -98,9 +100,8 @@ export const PROVIDERS: ProviderInfo[] = [
     ],
   },
   {
-    id: 'cohere',
-    label: 'Cohere',
-    envKey: 'COHERE_API_KEY',
+    id: 'cohere', label: 'Cohere', category: 'cloud',
+    tokenjsProvider: 'cohere', envKey: 'COHERE_API_KEY',
     defaultModel: 'command-r-plus',
     models: [
       { id: 'command-r-plus', label: 'Command R+' },
@@ -109,9 +110,8 @@ export const PROVIDERS: ProviderInfo[] = [
     ],
   },
   {
-    id: 'perplexity',
-    label: 'Perplexity',
-    envKey: 'PERPLEXITY_API_KEY',
+    id: 'perplexity', label: 'Perplexity', category: 'cloud',
+    tokenjsProvider: 'perplexity', envKey: 'PERPLEXITY_API_KEY',
     defaultModel: 'llama-3.1-sonar-large-128k-online',
     models: [
       { id: 'llama-3.1-sonar-large-128k-online', label: 'Sonar Large (online)' },
@@ -119,9 +119,8 @@ export const PROVIDERS: ProviderInfo[] = [
     ],
   },
   {
-    id: 'ai21',
-    label: 'AI21',
-    envKey: 'AI21_API_KEY',
+    id: 'ai21', label: 'AI21', category: 'cloud',
+    tokenjsProvider: 'ai21', envKey: 'AI21_API_KEY',
     defaultModel: 'jamba-1.5-large',
     models: [
       { id: 'jamba-1.5-large', label: 'Jamba 1.5 Large' },
@@ -129,22 +128,88 @@ export const PROVIDERS: ProviderInfo[] = [
     ],
   },
   {
-    id: 'bedrock',
-    label: 'AWS Bedrock',
-    envKey: 'AWS_ACCESS_KEY_ID',
+    id: 'bedrock', label: 'AWS Bedrock', category: 'cloud',
+    tokenjsProvider: 'bedrock', envKey: 'AWS_ACCESS_KEY_ID',
     defaultModel: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
     models: [
       { id: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Bedrock Claude 3.5 Sonnet' },
       { id: 'meta.llama3-1-70b-instruct-v1:0',           label: 'Bedrock Llama 3.1 70B' },
     ],
   },
+  // ── local (OpenAI-compatible servers running on the operator's machine) ──
+  {
+    id: 'ollama', label: 'Ollama', category: 'local',
+    tokenjsProvider: 'openai-compatible',
+    baseURLEnv: 'OLLAMA_BASE_URL', defaultBaseURL: 'http://localhost:11434/v1',
+    defaultModel: 'llama3.1:8b',
+    models: [
+      { id: 'llama3.1:8b',  label: 'Llama 3.1 8B' },
+      { id: 'llama3.2:3b',  label: 'Llama 3.2 3B' },
+      { id: 'qwen2.5:7b',   label: 'Qwen 2.5 7B' },
+      { id: 'qwen2.5:14b',  label: 'Qwen 2.5 14B' },
+      { id: 'mistral:7b',   label: 'Mistral 7B' },
+      { id: 'gemma2:9b',    label: 'Gemma 2 9B' },
+      { id: 'phi3:14b',     label: 'Phi 3 14B' },
+    ],
+  },
+  {
+    id: 'llamacpp', label: 'llama.cpp', category: 'local',
+    tokenjsProvider: 'openai-compatible',
+    baseURLEnv: 'LLAMACPP_BASE_URL', defaultBaseURL: 'http://localhost:8080/v1',
+    defaultModel: 'loaded-model',
+    models: [
+      { id: 'loaded-model', label: 'Currently loaded model' },
+    ],
+  },
+  {
+    id: 'lmstudio', label: 'LM Studio', category: 'local',
+    tokenjsProvider: 'openai-compatible',
+    baseURLEnv: 'LMSTUDIO_BASE_URL', defaultBaseURL: 'http://localhost:1234/v1',
+    defaultModel: 'local-model',
+    models: [
+      { id: 'local-model',                 label: 'Currently loaded model' },
+      { id: 'llama-3.2-3b-instruct',       label: 'Llama 3.2 3B Instruct' },
+      { id: 'qwen2.5-7b-instruct',         label: 'Qwen 2.5 7B Instruct' },
+      { id: 'mistral-7b-instruct-v0.3',    label: 'Mistral 7B Instruct v0.3' },
+    ],
+  },
 ]
+
+function resolveBaseURL(p: ProviderInfo): string | undefined {
+  if (p.category !== 'local') return undefined
+  if (p.baseURLEnv && process.env[p.baseURLEnv]) return process.env[p.baseURLEnv]
+  return p.defaultBaseURL
+}
+
+export function findProvider(id: string): ProviderInfo | undefined {
+  return PROVIDERS.find(p => p.id === id)
+}
 
 // Register every non-built-in model with token.js. Without this, requests
 // against frontier models that token.js's internal list doesn't know about
 // yet will fail with a runtime "unsupported model" error before they even
 // reach the provider.
 const tokenjs = new TokenJS()
+
+// token.js's `openai-compatible` provider requires baseURL at constructor
+// time — passing it as a call option is silently ignored. We keep one
+// dedicated TokenJS instance per local provider, lazily created on first
+// use, so each carries the right baseURL into every dispatch.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const localInstances = new Map<string, any>()
+function getTokenInstance(p: ProviderInfo) {
+  if (p.category !== 'local') return tokenjs
+  const baseURL = resolveBaseURL(p)
+  if (!baseURL) return tokenjs
+  const key = `${p.id}:${baseURL}`
+  let inst = localInstances.get(key)
+  if (!inst) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    inst = new (TokenJS as any)({ baseURL })
+    localInstances.set(key, inst)
+  }
+  return inst
+}
 const _extended = new Set<string>()
 function ensureExtended(provider: Provider, model: string) {
   const key = `${provider}:${model}`
@@ -164,14 +229,28 @@ function ensureExtended(provider: Provider, model: string) {
   }
 }
 for (const p of PROVIDERS) {
-  for (const m of p.models) ensureExtended(p.id, m.id)
+  for (const m of p.models) ensureExtended(p.tokenjsProvider, m.id)
 }
 
-export function getAvailableProviders(): { id: Provider; label: string; available: boolean; defaultModel: string; models: ModelInfo[] }[] {
+export interface PublicProviderInfo {
+  id: string
+  label: string
+  category: ProviderCategory
+  available: boolean
+  defaultModel: string
+  models: ModelInfo[]
+}
+
+export function getAvailableProviders(): PublicProviderInfo[] {
   return PROVIDERS.map(p => ({
     id: p.id,
     label: p.label,
-    available: !!process.env[p.envKey],
+    category: p.category,
+    // Cloud: available iff its API-key env var is set.
+    // Local: always reported available (we can't cheaply probe the local
+    // server here; the chat call will surface a clear ECONNREFUSED if the
+    // operator's local server isn't actually running).
+    available: p.category === 'local' ? true : !!(p.envKey && process.env[p.envKey]),
     defaultModel: p.defaultModel,
     models: p.models,
   }))
@@ -180,12 +259,21 @@ export function getAvailableProviders(): { id: Provider; label: string; availabl
 export function isModelValidForProvider(provider: string, model: string): boolean {
   const p = PROVIDERS.find(x => x.id === provider)
   if (!p) return false
+  // Local servers can serve any model name the operator has loaded;
+  // we can't enumerate that. Skip strict validation for local providers.
+  if (p.category === 'local') return typeof model === 'string' && model.length > 0
   return p.models.some(m => m.id === model)
 }
 
+// OpenAI-style multimodal content. token.js converts this to each provider's
+// native format internally (Anthropic image blocks, Gemini inlineData, etc).
+export type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
-  content: string
+  content: string | ContentBlock[]
 }
 
 export interface ChatResult {
@@ -193,56 +281,67 @@ export interface ChatResult {
   sources?: { title: string; url: string }[]
 }
 
+function buildCallOptions(p: ProviderInfo, model: string, apiMessages: unknown[], stream: boolean) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const opts: any = { provider: p.tokenjsProvider, model, messages: apiMessages, stream }
+  // For openai-compatible providers token.js requires the baseURL in the
+  // constructor (handled by getTokenInstance) but still expects a non-empty
+  // apiKey on the call. Most local servers accept any string.
+  if (p.category === 'local') opts.apiKey = 'local'
+  return opts
+}
+
 export async function runChat(
   messages: ChatMessage[],
-  provider: Provider = 'anthropic',
+  providerId: string = 'anthropic',
   model: string = 'claude-sonnet-4-6',
   systemPrompt: string = 'You are a helpful AI assistant.',
 ): Promise<ChatResult> {
+  const p = findProvider(providerId)
+  if (!p) throw new Error(`Unknown provider '${providerId}'`)
+
   const apiMessages = [
     { role: 'system' as const, content: systemPrompt },
     ...messages.map(m => ({ role: m.role, content: m.content })),
   ]
 
-  const response = await tokenjs.chat.completions.create({
-    provider,
-    model,
-    messages: apiMessages,
-  })
+  const inst = getTokenInstance(p)
+  const response = await inst.chat.completions.create(
+    buildCallOptions(p, model, apiMessages, false),
+  )
 
   const text = response.choices[0]?.message?.content ?? ''
   const usage = response.usage
-  if (usage) {
-    console.log(`[chat] in=${usage.prompt_tokens} out=${usage.completion_tokens}`)
-  }
+  if (usage) console.log(`[chat] in=${usage.prompt_tokens} out=${usage.completion_tokens}`)
 
-  // NOTE: Anthropic-native web search was dropped in this swap — it doesn't
-  // exist on the OpenAI-shaped surface that token.js exposes. If you want
-  // web search back, implement it as a tool call (works across providers,
-  // requires defining the tool schema + handling tool_use in a loop) or
-  // wrap a provider-specific search path. Sources field is preserved on the
-  // ChatResult type for forward compatibility.
+  // NOTE: Anthropic-native web search was dropped in the multi-provider
+  // swap — it isn't part of the OpenAI-shaped surface token.js exposes.
+  // Sources field on ChatResult preserved for forward compatibility.
 
   return { message: text }
 }
 
 export async function* runChatStream(
   messages: ChatMessage[],
-  provider: Provider = 'anthropic',
+  providerId: string = 'anthropic',
   model: string = 'claude-sonnet-4-6',
   systemPrompt: string = 'You are a helpful AI assistant.',
 ): AsyncGenerator<string, void, unknown> {
+  const p = findProvider(providerId)
+  if (!p) throw new Error(`Unknown provider '${providerId}'`)
+
   const apiMessages = [
     { role: 'system' as const, content: systemPrompt },
     ...messages.map(m => ({ role: m.role, content: m.content })),
   ]
 
-  const stream = await tokenjs.chat.completions.create({
-    provider,
-    model,
-    messages: apiMessages,
-    stream: true,
-  })
+  // token.js's create() is overloaded on `stream: true`; the helper
+  // returns the options object loosely typed so we cast back to the
+  // streaming iterable shape here to keep TS happy.
+  const inst = getTokenInstance(p)
+  const stream = await inst.chat.completions.create(
+    buildCallOptions(p, model, apiMessages, true),
+  ) as unknown as AsyncIterable<{ choices: Array<{ delta?: { content?: string } }> }>
 
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content
