@@ -16,7 +16,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
+    <html lang="en" className="h-dvh" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="h-full overflow-hidden">
+      <body className="h-dvh overflow-hidden">
         {children}
       </body>
     </html>
