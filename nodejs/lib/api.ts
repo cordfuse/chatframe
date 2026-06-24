@@ -84,6 +84,33 @@ export async function getProviders(): Promise<AvailableProvider[]> {
   return data.providers ?? []
 }
 
+export interface ProviderModelsResult {
+  models: ProviderModel[]
+  source: 'live' | 'registry'
+}
+
+// For local providers this probes the local server's /v1/models endpoint
+// and returns whatever's installed. For cloud providers returns the
+// curated registry list.
+export async function getProviderModels(providerId: string): Promise<ProviderModelsResult> {
+  let token = getToken()
+  if (!token) {
+    await authenticate()
+    token = getToken()!
+  }
+  const res = await fetch(`${BASE}/providers/${encodeURIComponent(providerId)}/models`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (res.status === 401) {
+    localStorage.removeItem('auth_token')
+    await authenticate()
+    return getProviderModels(providerId)
+  }
+  if (!res.ok) throw new Error(`Models fetch failed: ${res.status}`)
+  const data = await res.json()
+  return { models: data.models ?? [], source: data.source ?? 'registry' }
+}
+
 export interface ChatOpts {
   provider?: string
   model?: string

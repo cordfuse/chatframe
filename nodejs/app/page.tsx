@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { v4 as uuidv4 } from 'uuid'
-import { sendChatStream, initAuth, getProviders, type AvailableProvider, type MultimodalMessage, type ContentBlock } from '@/lib/api'
+import { sendChatStream, initAuth, getProviders, getProviderModels, type AvailableProvider, type ProviderModel, type MultimodalMessage, type ContentBlock } from '@/lib/api'
 import {
   loadConversations, upsertConversation, deleteConversation, renameConversation,
   clearAllConversations, autoTitle, relativeTime, getTheme, saveTheme, type Theme,
@@ -670,6 +670,11 @@ export default function Home() {
   const [provider, setProviderState] = useState<string>('anthropic')
   const [model, setModelState] = useState<string>('claude-sonnet-4-6')
   const [modelOpen, setModelOpen] = useState(false)
+  // Live model list per provider id — populated lazily when the dropdown
+  // opens. For local providers this is the actual installed-models list
+  // returned by the local server's /v1/models endpoint.
+  const [liveModels, setLiveModels] = useState<Record<string, ProviderModel[]>>({})
+  const [liveModelsLoading, setLiveModelsLoading] = useState(false)
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -1137,11 +1142,31 @@ export default function Home() {
                 {providers.length > 0 && (() => {
                   const providerInfo = providers.find(p => p.id === provider)
                   if (!providerInfo) return null
-                  const modelInfo = providerInfo.models.find(m => m.id === model)
+                  // Live-discovered models trump the curated registry list
+                  // (matters for local providers: we can't know what the
+                  // operator has actually installed without probing).
+                  const modelsForDropdown = liveModels[providerInfo.id] ?? providerInfo.models
+                  const allKnownModels = [...providerInfo.models, ...(liveModels[providerInfo.id] ?? [])]
+                  const modelInfo = allKnownModels.find(m => m.id === model)
+                  const openDropdown = async () => {
+                    setModelOpen(o => !o)
+                    if (modelOpen) return  // we're closing it
+                    if (providerInfo.category === 'local' && !liveModels[providerInfo.id]) {
+                      setLiveModelsLoading(true)
+                      try {
+                        const res = await getProviderModels(providerInfo.id)
+                        setLiveModels(prev => ({ ...prev, [providerInfo.id]: res.models }))
+                      } catch (e) {
+                        console.warn('live models fetch failed:', e)
+                      } finally {
+                        setLiveModelsLoading(false)
+                      }
+                    }
+                  }
                   return (
                     <div className="relative">
                       <button
-                        onClick={() => setModelOpen(o => !o)}
+                        onClick={openDropdown}
                         className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1.5 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
                         title={`${providerInfo.label} — change model`}
                       >
@@ -1151,9 +1176,18 @@ export default function Home() {
                       {modelOpen && (
                         <>
                           <div className="fixed inset-0 z-30" onClick={() => setModelOpen(false)} />
-                          <div className="absolute left-0 bottom-full z-40 mb-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden">
-                            <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{providerInfo.label}</p>
-                            {providerInfo.models.map(m => {
+                          <div className="absolute left-0 bottom-full z-40 mb-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[50vh] overflow-y-auto">
+                            <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface flex items-center justify-between">
+                              <span>{providerInfo.label}</span>
+                              {providerInfo.category === 'local' && liveModelsLoading && <span className="text-fg-4">…</span>}
+                            </p>
+                            {modelsForDropdown.length === 0 ? (
+                              <p className="px-3 py-3 text-[11px] text-fg-4">
+                                {providerInfo.category === 'local'
+                                  ? 'No models installed. Pull or load one on the server.'
+                                  : 'No models available.'}
+                              </p>
+                            ) : modelsForDropdown.map(m => {
                               const isActive = model === m.id
                               return (
                                 <button

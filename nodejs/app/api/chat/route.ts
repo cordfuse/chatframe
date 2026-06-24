@@ -80,6 +80,13 @@ export async function POST(request: NextRequest) {
       const envHint = providerInfo.baseURLEnv ? ` (override with ${providerInfo.baseURLEnv})` : ''
       return `Couldn't reach ${providerInfo.label}${baseURL ? ` at ${baseURL}` : ''}. Is the server running?${envHint}`
     }
+    // Model not installed on a local server (Ollama 404, llama.cpp similar).
+    if (providerInfo.category === 'local' && /\b404\b|not found|no such model/i.test(raw)) {
+      if (providerInfo.id === 'ollama') {
+        return `Model '${model}' isn't installed on Ollama. Pull it with:  ollama pull ${model}`
+      }
+      return `Model '${model}' isn't loaded on ${providerInfo.label}. Load it on the server and retry.`
+    }
     return raw || 'Internal server error'
   }
 
