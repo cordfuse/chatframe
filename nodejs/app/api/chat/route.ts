@@ -14,7 +14,6 @@ const ENV_MODEL = process.env.QUILL_MODEL ?? 'claude-sonnet-4-6'
 // Client may override per-request via the request body; resolveGen() applies
 // request → env → hardcoded.
 const HARDCODED_TEMPERATURE = 1.0
-const HARDCODED_MAX_TOKENS  = 4096
 function envNumber(name: string): number | undefined {
   const raw = process.env[name]
   if (raw === undefined || raw === '') return undefined
@@ -24,10 +23,6 @@ function envNumber(name: string): number | undefined {
 function resolveTemperature(clientValue: unknown): number {
   if (typeof clientValue === 'number' && Number.isFinite(clientValue)) return clientValue
   return envNumber('QUILL_TEMPERATURE') ?? HARDCODED_TEMPERATURE
-}
-function resolveMaxTokens(clientValue: unknown): number {
-  if (typeof clientValue === 'number' && clientValue > 0) return Math.floor(clientValue)
-  return envNumber('QUILL_MAX_TOKENS') ?? HARDCODED_MAX_TOKENS
 }
 function resolveSystemPrompt(clientValue: unknown): string {
   if (typeof clientValue === 'string' && clientValue.trim().length > 0) return clientValue
@@ -49,7 +44,6 @@ export async function POST(request: NextRequest) {
     webSearch,
     systemPrompt: clientSystemPrompt,
     temperature: clientTemperature,
-    maxTokens: clientMaxTokens,
   } = body
 
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -132,10 +126,9 @@ export async function POST(request: NextRequest) {
   }
   const systemPrompt = resolveSystemPrompt(clientSystemPrompt)
   const temperature  = resolveTemperature(clientTemperature)
-  const maxTokens    = resolveMaxTokens(clientMaxTokens)
-  const runOpts = { webSearch: wantWebSearch, temperature, maxTokens }
+  const runOpts = { webSearch: wantWebSearch, temperature }
 
-  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch} temp=${temperature} maxTok=${maxTokens}`)
+  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch} temp=${temperature}`)
 
   if (wantStream) {
     const enc = new TextEncoder()

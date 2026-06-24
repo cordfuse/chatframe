@@ -289,7 +289,6 @@ function buildCallOptions(
   stream: boolean,
   withTools: boolean = false,
   temperature?: number,
-  maxTokens?: number,
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const opts: any = { provider: p.tokenjsProvider, model, messages: apiMessages, stream }
@@ -299,7 +298,6 @@ function buildCallOptions(
   if (p.category === 'local') opts.apiKey = 'local'
   if (withTools) opts.tools = [WEB_SEARCH_TOOL]
   if (typeof temperature === 'number') opts.temperature = temperature
-  if (typeof maxTokens === 'number' && maxTokens > 0) opts.max_tokens = maxTokens
   return opts
 }
 
@@ -323,7 +321,6 @@ type WireMessage = SystemMessage | UserMessage | AsstTextMsg | AsstToolMsg | Too
 export interface RunChatOptions {
   webSearch?: boolean
   temperature?: number
-  maxTokens?: number
 }
 
 // Yielded by runChatStream — text deltas plus optional events the route
@@ -353,7 +350,7 @@ export async function runChat(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await inst.chat.completions.create(
-      buildCallOptions(p, model, wireMessages, false, !!options.webSearch, options.temperature, options.maxTokens),
+      buildCallOptions(p, model, wireMessages, false, !!options.webSearch, options.temperature),
     )
     const choice = response.choices[0]
     const usage = response.usage
@@ -402,7 +399,7 @@ export async function* runChatStream(
     // token.js's create() is overloaded on `stream: true`; cast the result
     // to the streaming iterable shape to keep TS happy.
     const stream = await inst.chat.completions.create(
-      buildCallOptions(p, model, wireMessages, true, !!options.webSearch, options.temperature, options.maxTokens),
+      buildCallOptions(p, model, wireMessages, true, !!options.webSearch, options.temperature),
     ) as unknown as AsyncIterable<{
       choices: Array<{
         delta?: {

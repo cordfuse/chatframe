@@ -12,8 +12,6 @@ import {
   getWebSearchEnabled, setWebSearchEnabled,
   getCustomSystemPrompt, setCustomSystemPrompt,
   getTemperature, setTemperature,
-  getMaxTokens, setMaxTokens,
-  getSendKey, setSendKey, type SendKey,
   exportAll, importConversationsJson, resetAllData,
 } from '@/lib/storage'
 import type { ChatMessage, Conversation, Attachment } from '@/lib/types'
@@ -171,8 +169,6 @@ function SettingsPanel({
   providers, selectedProvider, onProvider,
   customSystemPrompt, onSystemPrompt,
   customTemperature, onTemperature,
-  customMaxTokens, onMaxTokens,
-  sendKeyPref, onSendKey,
   onExport, onImport, onResetAll,
   onClose,
 }: {
@@ -185,10 +181,6 @@ function SettingsPanel({
   onSystemPrompt: (s: string | null) => void
   customTemperature: number | null
   onTemperature: (t: number | null) => void
-  customMaxTokens: number | null
-  onMaxTokens: (t: number | null) => void
-  sendKeyPref: SendKey
-  onSendKey: (k: SendKey) => void
   onExport: () => void
   onImport: () => void
   onResetAll: () => void
@@ -329,12 +321,12 @@ function SettingsPanel({
               </div>
               {activeProvider && !activeProvider.available && activeProvider.category === 'cloud' && (
                 <p className="mt-1.5 text-[10px] text-fg-4">
-                  Set <code className="font-mono">{activeProvider.id.toUpperCase()}_API_KEY</code> in <code className="font-mono">.env.local</code> and restart the server.
+                  Set <code className="font-mono">{activeProvider.id.toUpperCase()}_API_KEY</code> and restart the server.
                 </p>
               )}
               {activeProvider && activeProvider.category === 'local' && (
                 <p className="mt-1.5 text-[10px] text-fg-4">
-                  Local server expected at the default port. Override with <code className="font-mono">{activeProvider.id.toUpperCase()}_BASE_URL</code> in <code className="font-mono">.env.local</code> if needed.
+                  Local server expected at the default port. Override with <code className="font-mono">{activeProvider.id.toUpperCase()}_BASE_URL</code> if needed.
                 </p>
               )}
             </div>
@@ -350,7 +342,7 @@ function SettingsPanel({
                 const trimmed = promptDraft.trim()
                 onSystemPrompt(trimmed.length > 0 ? trimmed : null)
               }}
-              placeholder='Server default — set QUILL_SYSTEM_PROMPT in .env.local, or override per-user here.'
+              placeholder='Server default — set QUILL_SYSTEM_PROMPT, or override per-user here.'
               rows={3}
               className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg placeholder:text-fg-4 outline-none focus:ring-1 focus:ring-primary/40 resize-y min-h-[4.5rem]"
             />
@@ -389,55 +381,16 @@ function SettingsPanel({
             )}
           </div>
 
-          {/* Max tokens */}
-          <div>
-            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Max response tokens</p>
-            <input
-              type="number"
-              min={1} max={32000} step={256}
-              value={customMaxTokens ?? ''}
-              onChange={e => {
-                const v = e.target.value.trim()
-                if (v === '') onMaxTokens(null)
-                else { const n = parseInt(v, 10); if (Number.isFinite(n) && n > 0) onMaxTokens(n) }
-              }}
-              placeholder="Server default"
-              className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg placeholder:text-fg-4 outline-none focus:ring-1 focus:ring-primary/40"
-            />
-          </div>
-
-          {/* Send key */}
-          <div>
-            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Send with</p>
-            <div className="grid grid-cols-2 gap-2">
-              {(['enter', 'mod-enter'] as const).map(k => {
-                const isActive = sendKeyPref === k
-                return (
-                  <button
-                    key={k}
-                    onClick={() => onSendKey(k)}
-                    className={`rounded-lg border px-3 py-2 text-xs transition-colors ${
-                      isActive
-                        ? 'border-primary/40 bg-primary/10 text-fg'
-                        : 'border-white/10 bg-surface-2 text-fg-2 hover:bg-surface-3 hover:text-fg'
-                    }`}
-                  >
-                    {k === 'enter' ? 'Enter' : '⌘/Ctrl + Enter'}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="mt-1 text-[10px] text-fg-4">
-              {sendKeyPref === 'enter'
-                ? 'Shift+Enter for a new line'
-                : 'Plain Enter for a new line'}
-            </p>
-          </div>
-
-          {/* Data: Export / Import / Reset */}
+          {/* Data: Import / Export / Reset on a single row */}
           <div>
             <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Data</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={onImport}
+                className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+              >
+                Import…
+              </button>
               <button
                 onClick={onExport}
                 className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
@@ -445,18 +398,12 @@ function SettingsPanel({
                 Export…
               </button>
               <button
-                onClick={onImport}
-                className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+                onClick={onResetAll}
+                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400 hover:bg-red-500/20 transition-colors"
               >
-                Import…
+                Reset
               </button>
             </div>
-            <button
-              onClick={onResetAll}
-              className="mt-2 w-full rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400 hover:bg-red-500/20 transition-colors"
-            >
-              Reset all data
-            </button>
           </div>
         </div>
 
@@ -849,8 +796,6 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   // hint when unset so user knows what value will actually be used.
   const [customSystemPrompt, setCustomSystemPromptState] = useState<string | null>(null)
   const [customTemperature, setCustomTemperatureState] = useState<number | null>(null)
-  const [customMaxTokens, setCustomMaxTokensState] = useState<number | null>(null)
-  const [sendKeyPref, setSendKeyPrefState] = useState<SendKey>('enter')
   const [provider, setProviderState] = useState<string>('anthropic')
   const [model, setModelState] = useState<string>('claude-sonnet-4-6')
   const [modelOpen, setModelOpen] = useState(false)
@@ -880,11 +825,9 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
     document.documentElement.setAttribute('data-theme', t)
     const loaded = loadConversations()
     setConversations(loaded)
-    // Generation prefs + send-key from localStorage.
+    // Generation prefs from localStorage.
     setCustomSystemPromptState(getCustomSystemPrompt())
     setCustomTemperatureState(getTemperature())
-    setCustomMaxTokensState(getMaxTokens())
-    setSendKeyPrefState(getSendKey())
     // Hydrate the active conversation from the URL (e.g. /c/<id> hard load).
     // If the id doesn't exist anymore (deleted on another tab, stale link),
     // silently fall back to / so the user sees the empty state.
@@ -967,14 +910,6 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   const handleTemperature = useCallback((t: number | null) => {
     setCustomTemperatureState(t)
     setTemperature(t)
-  }, [])
-  const handleMaxTokens = useCallback((t: number | null) => {
-    setCustomMaxTokensState(t)
-    setMaxTokens(t)
-  }, [])
-  const handleSendKey = useCallback((k: SendKey) => {
-    setSendKeyPrefState(k)
-    setSendKey(k)
   }, [])
 
   // ── auto-scroll on new content ──
@@ -1207,7 +1142,6 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           provider, model, webSearch,
           systemPrompt: customSystemPrompt ?? undefined,
           temperature: customTemperature ?? undefined,
-          maxTokens: customMaxTokens ?? undefined,
         },
         {
           onToolRunning: info => setToolRunning(info),
@@ -1256,7 +1190,7 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
       setToolRunning(null)
       abortRef.current = null
     }
-  }, [activeId, conversations, provider, model, webSearch, customSystemPrompt, customTemperature, customMaxTokens, buildWireMessages, updateUrl])
+  }, [activeId, conversations, provider, model, webSearch, customSystemPrompt, customTemperature, buildWireMessages, updateUrl])
 
   const send = useCallback(async () => {
     const text = input.trim()
@@ -1306,20 +1240,9 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   }, [messages, streaming, runFlowWith])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter') return
-    if (sendKeyPref === 'mod-enter') {
-      // Cmd/Ctrl+Enter sends; plain Enter inserts a newline.
-      if (e.metaKey || e.ctrlKey) {
-        e.preventDefault()
-        send()
-      }
-      return
-    }
-    // Default: Enter sends, Shift+Enter inserts a newline.
-    if (!e.shiftKey) {
-      e.preventDefault()
-      send()
-    }
+    if (e.key !== 'Enter' || e.shiftKey) return
+    e.preventDefault()
+    send()
   }
 
   // ── render ──
@@ -1663,10 +1586,6 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           onSystemPrompt={handleSystemPrompt}
           customTemperature={customTemperature}
           onTemperature={handleTemperature}
-          customMaxTokens={customMaxTokens}
-          onMaxTokens={handleMaxTokens}
-          sendKeyPref={sendKeyPref}
-          onSendKey={handleSendKey}
           onExport={() => {
             const data = exportAll()
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })

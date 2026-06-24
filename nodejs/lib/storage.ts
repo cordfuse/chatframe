@@ -179,7 +179,6 @@ export function setWebSearchEnabled(enabled: boolean) {
 
 const SYSTEM_PROMPT_KEY = 'quill_system_prompt'
 const TEMPERATURE_KEY   = 'quill_temperature'
-const MAX_TOKENS_KEY    = 'quill_max_tokens'
 
 export function getCustomSystemPrompt(): string | null {
   if (typeof window === 'undefined') return null
@@ -200,31 +199,6 @@ export function getTemperature(): number | null {
 export function setTemperature(t: number | null) {
   if (t === null) localStorage.removeItem(TEMPERATURE_KEY)
   else localStorage.setItem(TEMPERATURE_KEY, String(t))
-}
-
-export function getMaxTokens(): number | null {
-  if (typeof window === 'undefined') return null
-  const v = localStorage.getItem(MAX_TOKENS_KEY)
-  if (v === null) return null
-  const n = parseInt(v, 10)
-  return Number.isFinite(n) && n > 0 ? n : null
-}
-export function setMaxTokens(t: number | null) {
-  if (t === null) localStorage.removeItem(MAX_TOKENS_KEY)
-  else localStorage.setItem(MAX_TOKENS_KEY, String(t))
-}
-
-// ─── Send key preference ────────────────────────────────────────────────────
-
-export type SendKey = 'enter' | 'mod-enter'
-const SEND_KEY_KEY = 'quill_send_key'
-
-export function getSendKey(): SendKey {
-  if (typeof window === 'undefined') return 'enter'
-  return localStorage.getItem(SEND_KEY_KEY) === 'mod-enter' ? 'mod-enter' : 'enter'
-}
-export function setSendKey(k: SendKey) {
-  localStorage.setItem(SEND_KEY_KEY, k)
 }
 
 // ─── Export / Import / Reset ─────────────────────────────────────────────────
