@@ -370,31 +370,35 @@ function Sidebar({
         lg:relative lg:shadow-none
         ${visible ? 'translate-x-0' : '-translate-x-full lg:w-0'}
       `}>
-        {/* brand + clear-all (when convs exist) + close (mobile) */}
-        <div className="flex items-center justify-between px-3 py-3 shrink-0 min-w-[260px] border-b border-white/10">
+        {/* brand + close (mobile) */}
+        <div className="flex items-center justify-between px-3 py-3 shrink-0 min-w-[260px]">
           <div className="flex items-center gap-2.5">
             <QuillIcon />
             <span className="text-sm font-medium text-fg whitespace-nowrap">Quill</span>
           </div>
-          <div className="flex items-center gap-1">
-            {conversations.length > 0 && (
-              <button
-                onClick={onClearAll}
-                title="Clear all conversations"
-                aria-label="Clear all conversations"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-4 hover:bg-surface-2 hover:text-red-400 transition-colors"
-              >
-                <TrashIcon />
-              </button>
-            )}
-            <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label="Close sidebar">
-              <CloseIcon />
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label="Close sidebar">
+            <CloseIcon />
+          </button>
+        </div>
+
+        {/* tabs-row equivalent — mighty puts Delete-all-chats here, right-aligned, under a thin divider. Quill has no tabs, so the row is just label + clear-all */}
+        <div className="flex items-center border-b border-white/10 ml-3 mr-[17px] h-9">
+          <span className="text-xs font-medium text-fg-3">Chats</span>
+          <div className="flex-1" />
+          {conversations.length > 0 && (
+            <button
+              onClick={onClearAll}
+              title="Clear all conversations"
+              aria-label="Clear all conversations"
+              className="flex h-7 w-7 items-center justify-center text-fg-4 hover:text-red-400 transition-colors"
+            >
+              <TrashIcon />
             </button>
-          </div>
+          )}
         </div>
 
         {/* search */}
-        <div className="px-3 pt-3 pb-2 shrink-0 min-w-[260px]">
+        <div className="px-3 pt-2 pb-2 shrink-0 min-w-[260px]">
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-4 pointer-events-none"><SearchIcon /></span>
             <input
