@@ -67,6 +67,22 @@ export async function POST(request: NextRequest) {
 
   const provider = providerId
 
+  // Translate provider errors into actionable messages. ECONNREFUSED to a
+  // local provider almost always means the operator's local server isn't
+  // running (Ollama / llama.cpp / LM Studio). Surfacing "Connection error."
+  // alone gives the user no clue what to fix.
+  const friendlyError = (err: unknown): string => {
+    const raw = err instanceof Error ? err.message : String(err)
+    const cause = (err as { cause?: { code?: string } })?.cause
+    const isConnRefused = cause?.code === 'ECONNREFUSED' || /ECONNREFUSED|connection error|fetch failed/i.test(raw)
+    if (isConnRefused && providerInfo.category === 'local') {
+      const baseURL = providerInfo.defaultBaseURL
+      const envHint = providerInfo.baseURLEnv ? ` (override with ${providerInfo.baseURLEnv})` : ''
+      return `Couldn't reach ${providerInfo.label}${baseURL ? ` at ${baseURL}` : ''}. Is the server running?${envHint}`
+    }
+    return raw || 'Internal server error'
+  }
+
   console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream}`)
 
   if (wantStream) {
@@ -83,8 +99,7 @@ export async function POST(request: NextRequest) {
           console.log('[chat] stream done')
         } catch (err) {
           console.error('[chat] stream error:', err)
-          const message = err instanceof Error ? err.message : 'Internal server error'
-          send({ type: 'error', message })
+          send({ type: 'error', message: friendlyError(err) })
         } finally {
           controller.close()
         }
@@ -105,7 +120,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
   } catch (err) {
     console.error('[chat] error:', err)
-    const message = err instanceof Error ? err.message : 'Internal server error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: friendlyError(err) }, { status: 500 })
   }
 }
