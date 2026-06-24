@@ -1,7 +1,7 @@
 # Quill
 
-[![version](https://img.shields.io/github/v/tag/cordfuse/quill?label=version&color=2ea44f)](https://github.com/cordfuse/quill/releases)
-[![license](https://img.shields.io/github/license/cordfuse/quill?color=2ea44f)](LICENSE)
+[![version](https://img.shields.io/badge/version-0.1.0-2ea44f.svg)](https://github.com/cordfuse/quill/releases)
+[![license](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 
 Embeddable AI chatbot framework. Drop-in branding, kiosk-friendly, MCP-ready.
 
