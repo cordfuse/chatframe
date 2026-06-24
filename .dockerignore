@@ -1,0 +1,36 @@
+# Build context is the repo root (see docker/docker-compose.yml). Anything
+# excluded here is invisible to the Docker daemon during `docker compose build`.
+
+# Heavy / build artifacts — recreated inside the builder stage
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+
+# VCS / IDE
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Secrets — must never enter the image
+**/.env
+**/.env.*
+!**/.env.example
+
+# Docs / dev-only
+*.md
+!README.md
+!docker/README.md
+LICENSE
+CHANGELOG*
+
+# Local logs / scratch
+**/*.log
+**/.DS_Store
+**/tmp
+
+# The docker dir itself isn't needed in the build context — Dockerfile is
+# read directly by the daemon, and we don't copy anything else from here.
+docker

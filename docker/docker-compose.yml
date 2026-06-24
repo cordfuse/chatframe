@@ -1,47 +1,80 @@
-# Quill — dev / single-host compose.
+# Quill — single-host compose. Direct port exposure, no reverse proxy.
+# Use docker-compose.prod.yml for a Caddy-fronted TLS deployment.
 #
-# Build context is repo root so the Dockerfile can COPY from nodejs/.
-# Run from this folder: `docker compose up` (or `docker compose up --build`).
-# Host port 3008 chosen per Cordfuse PORTS.md registry (next free 30xx slot
-# after llmux=3001/vyzr=3006-3007/mighty-ai-qr-web=3005).
+# Quick start:
+#   1. cp .env.example .env             # then edit .env with your API keys
+#   2. docker compose up --build        # build + run
+#   3. open http://localhost:3008
+#
+# The container reads its branding/themes/MCP config from a host-mounted
+# volume (default: ../nodejs/config). Edit files in that dir on the host and
+# the next page request picks up the changes — no rebuild, no restart.
+#
+# Build context is the repo root so the Dockerfile can COPY from nodejs/.
 
 services:
   quill:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    image: cordfuse/quill:dev
     container_name: quill
     restart: unless-stopped
+
+    # Host:container. Change the left side to whatever you want exposed
+    # on the host (3008 chosen to avoid conflicting with other dev servers).
     ports:
       - "3008:3000"
-    environment:
-      # Auth — required, no sensible default for production
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-prod}
 
-      # Provider selection (default anthropic). Set the matching
-      # API key env below.
+    # Operator secrets live in .env (gitignored). Provider API keys, JWT
+    # secret, etc. See .env.example for the full list.
+    env_file:
+      - .env
+
+    environment:
+      # Where the app reads quill.config.json, quill-mcp.json, icons/, etc.
+      # Must match the container-side mount target below.
+      QUILL_CONFIG_DIR: /app/config
+
+      # ── Defaults applied when the corresponding .env value is unset ──
+      # Operator overrides any of these by uncommenting the matching line
+      # in .env. Anything left at the default is just baseline behavior.
+
+      # Provider + model — default to anthropic / sonnet 4.6. Switch to
+      # any provider for which you've supplied an API key in .env.
       QUILL_PROVIDER: ${QUILL_PROVIDER:-anthropic}
       QUILL_MODEL: ${QUILL_MODEL:-claude-sonnet-4-6}
+
+      # System prompt + temperature — server-side defaults. Users can
+      # override per-conversation in the Settings panel (unless kiosk
+      # mode hides it; see flags below).
       QUILL_SYSTEM_PROMPT: ${QUILL_SYSTEM_PROMPT:-You are a helpful AI assistant.}
+      QUILL_TEMPERATURE: ${QUILL_TEMPERATURE:-1.0}
 
-      # Provider keys — uncomment + set the ones you use.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      # OPENAI_API_KEY: ${OPENAI_API_KEY}
-      # GEMINI_API_KEY: ${GEMINI_API_KEY}
-      # GROQ_API_KEY: ${GROQ_API_KEY}
-      # MISTRAL_API_KEY: ${MISTRAL_API_KEY}
-      # COHERE_API_KEY: ${COHERE_API_KEY}
-      # PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
-      # AI21_API_KEY: ${AI21_API_KEY}
+      # ── Kiosk visibility flags (1 = show, 0 = hide) ──
+      # When a control is hidden, the underlying feature still runs server-
+      # side using whatever's configured (see docs/kiosk-mode.md). To make
+      # something a true no-op, don't configure the backing key/server.
+      QUILL_SHOW_SETTINGS:     ${QUILL_SHOW_SETTINGS:-1}
+      QUILL_PERSIST_CHAT:      ${QUILL_PERSIST_CHAT:-1}
+      QUILL_SHOW_WEB_SEARCH:   ${QUILL_SHOW_WEB_SEARCH:-1}
+      QUILL_SHOW_MCP:          ${QUILL_SHOW_MCP:-1}
+      QUILL_SHOW_MODEL_PICKER: ${QUILL_SHOW_MODEL_PICKER:-1}
+      QUILL_SHOW_ATTACHMENTS:  ${QUILL_SHOW_ATTACHMENTS:-1}
 
-      # Optional — anthropic native web search version (when re-added).
-      # WEB_SEARCH_TOOL_VERSION: web_search_20250305
+    volumes:
+      # The persistent config volume. Single mount point for ALL operator
+      # customizations: quill.config.json (branding + themes + welcome +
+      # starter prompts + icon paths), quill-mcp.json (MCP servers),
+      # icons/ (PNGs the config references via /branding/*).
+      #
+      # The default points at the in-repo config so a forker can `docker
+      # compose up` and see the canonical defaults. Replace with your own
+      # path for production:
+      #   - /srv/quill-config:/app/config
+      - ../nodejs/config:/app/config
 
+    # Lets the container reach services on the host machine — useful for
+    # local model providers (Ollama, LM Studio) running on the host.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    networks:
-      - proxy_net
-
-networks:
-  proxy_net:
-    external: true

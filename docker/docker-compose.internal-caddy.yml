@@ -1,0 +1,53 @@
+# Quill — single-host compose for deployments where the host ALREADY runs a
+# reverse proxy (Caddy / nginx / Traefik) attached to a shared docker network.
+#
+# Pattern matches the cachy infra setup: a host-level Caddy container lives
+# on `proxy_net` and routes <service>.linux.internal → <container>:<port>.
+# Quill joins that same network and exposes nothing on the host — Caddy
+# proxies by container name.
+#
+# Pre-flight:
+#   1. Confirm `proxy_net` exists (`docker network ls`). It must be marked
+#      external below since this compose doesn't create it.
+#   2. Add a vhost to your host Caddyfile (see docker/Caddyfile in this
+#      repo for the SSE-friendly block we ship). Reload Caddy after.
+#   3. cp .env.example .env  →  fill in JWT_SECRET, ANTHROPIC_API_KEY, etc.
+#   4. docker compose -f docker-compose.internal-caddy.yml up -d --build
+
+services:
+  quill:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: cordfuse/quill:dev
+    container_name: quill
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      QUILL_CONFIG_DIR: /app/config
+
+      QUILL_PROVIDER: ${QUILL_PROVIDER:-anthropic}
+      QUILL_MODEL: ${QUILL_MODEL:-claude-sonnet-4-6}
+      QUILL_SYSTEM_PROMPT: ${QUILL_SYSTEM_PROMPT:-You are a helpful AI assistant.}
+      QUILL_TEMPERATURE: ${QUILL_TEMPERATURE:-1.0}
+
+      QUILL_SHOW_SETTINGS:     ${QUILL_SHOW_SETTINGS:-1}
+      QUILL_PERSIST_CHAT:      ${QUILL_PERSIST_CHAT:-1}
+      QUILL_SHOW_WEB_SEARCH:   ${QUILL_SHOW_WEB_SEARCH:-1}
+      QUILL_SHOW_MCP:          ${QUILL_SHOW_MCP:-1}
+      QUILL_SHOW_MODEL_PICKER: ${QUILL_SHOW_MODEL_PICKER:-1}
+      QUILL_SHOW_ATTACHMENTS:  ${QUILL_SHOW_ATTACHMENTS:-1}
+
+    volumes:
+      # Same persistent config volume convention as the other compose files.
+      - ../nodejs/config:/app/config
+
+    networks:
+      - proxy_net
+
+networks:
+  proxy_net:
+    external: true   # created out-of-band by your host's reverse-proxy stack
