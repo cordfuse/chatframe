@@ -16,6 +16,12 @@ WORKDIR /app
 COPY nodejs/package*.json ./
 RUN npm ci
 
+# next.config.ts reads ../VERSION at build time as the source of truth for
+# NEXT_PUBLIC_APP_VERSION. The file lives at the repo root so it's the
+# canonical version for badges/CI/everything; copy it one level above the
+# nodejs source so the relative `../VERSION` resolves the same as in dev.
+COPY VERSION /VERSION
+
 # Then the source — invalidates the build cache on app changes only
 COPY nodejs/. .
 RUN npm run build

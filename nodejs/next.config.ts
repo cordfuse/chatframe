@@ -1,7 +1,22 @@
 import type { NextConfig } from 'next'
+import fs from 'node:fs'
+import path from 'node:path'
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { version } = require('./package.json')
+// Version source of truth: the repo-root VERSION file. Bump that file and
+// every consumer follows — Next env (NEXT_PUBLIC_APP_VERSION), the package
+// version bump script if you add one, badges, etc. Falls back to
+// package.json's version field only if VERSION isn't accessible (which
+// shouldn't happen in normal dev or docker builds since the Dockerfile
+// explicitly copies VERSION into the builder stage).
+function readVersion(): string {
+  try {
+    return fs.readFileSync(path.join(__dirname, '..', 'VERSION'), 'utf-8').trim()
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('./package.json').version
+  }
+}
+const version = readVersion()
 
 const nextConfig: NextConfig = {
   output: 'standalone',

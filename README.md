@@ -1,5 +1,8 @@
 # Quill
 
+[![version](https://img.shields.io/github/v/tag/cordfuse/quill?label=version&color=2ea44f)](https://github.com/cordfuse/quill/releases)
+[![license](https://img.shields.io/github/license/cordfuse/quill?color=2ea44f)](LICENSE)
+
 Embeddable AI chatbot framework. Drop-in branding, kiosk-friendly, MCP-ready.
 
 A single Next.js app you self-host. Mount a config volume, point it at any of 12 LLM providers, and serve a polished chat UI from a Docker container in under a minute. Built to embed in third-party sites (support widget, demo kiosk, internal tool) without code changes.
