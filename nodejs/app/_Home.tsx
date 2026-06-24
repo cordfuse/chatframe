@@ -1356,7 +1356,10 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           >
             <MenuIcon />
           </button>
-          <h1 className="text-sm font-medium text-fg">Quill</h1>
+          <span className="flex items-center gap-1.5">
+            <QuillIcon />
+            <h1 className="text-sm font-medium text-fg">Quill</h1>
+          </span>
           <div className="flex-1" />
           {activeId && (
             <button
