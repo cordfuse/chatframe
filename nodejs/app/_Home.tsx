@@ -408,14 +408,12 @@ function SettingsPanel({
         </div>
 
         <div className="px-5 py-3 flex items-center justify-between text-[10px] text-fg-4">
-          <a
-            href="https://github.com/cordfuse/quill/releases"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => window.location.reload()}
             className="hover:text-fg-2 transition-colors"
           >
             Check for updates
-          </a>
+          </button>
           <span>Quill v{APP_VERSION}</span>
         </div>
       </aside>
