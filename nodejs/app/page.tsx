@@ -793,47 +793,6 @@ export default function Home() {
             <MenuIcon />
           </button>
           <h1 className="text-sm font-medium text-fg">Quill</h1>
-          {/* Model pill */}
-          {providers.length > 0 && (() => {
-            const providerInfo = providers.find(p => p.id === provider)
-            if (!providerInfo) return null
-            const modelInfo = providerInfo.models.find(m => m.id === model)
-            return (
-              <div className="relative">
-                <button
-                  onClick={() => setModelOpen(o => !o)}
-                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1.5 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
-                  title={`${providerInfo.label} — change model`}
-                >
-                  <span className="truncate max-w-[10rem]">{modelInfo?.label ?? model}</span>
-                  <ChevronIcon open={modelOpen} />
-                </button>
-                {modelOpen && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setModelOpen(false)} />
-                    <div className="absolute left-0 top-full z-40 mt-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden">
-                      <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{providerInfo.label}</p>
-                      {providerInfo.models.map(m => {
-                        const isActive = model === m.id
-                        return (
-                          <button
-                            key={m.id}
-                            onClick={() => { handleModel(m.id); setModelOpen(false) }}
-                            className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                              isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
-                            }`}
-                          >
-                            <span className="flex-1 text-left">{m.label}</span>
-                            {isActive && <span className="text-primary shrink-0">✓</span>}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            )
-          })()}
           <div className="flex-1" />
           {activeId && (
             <button
@@ -905,7 +864,50 @@ export default function Home() {
               style={{ maxHeight: '160px', overflowY: 'auto' }}
               disabled={streaming}
             />
-            <div className="flex items-center justify-end px-2.5 pb-2.5">
+            <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
+              {/* Model pill — opens upward from the composer */}
+              <div>
+                {providers.length > 0 && (() => {
+                  const providerInfo = providers.find(p => p.id === provider)
+                  if (!providerInfo) return null
+                  const modelInfo = providerInfo.models.find(m => m.id === model)
+                  return (
+                    <div className="relative">
+                      <button
+                        onClick={() => setModelOpen(o => !o)}
+                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1.5 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+                        title={`${providerInfo.label} — change model`}
+                      >
+                        <span className="truncate max-w-[10rem]">{modelInfo?.label ?? model}</span>
+                        <ChevronIcon open={modelOpen} />
+                      </button>
+                      {modelOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={() => setModelOpen(false)} />
+                          <div className="absolute left-0 bottom-full z-40 mb-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden">
+                            <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{providerInfo.label}</p>
+                            {providerInfo.models.map(m => {
+                              const isActive = model === m.id
+                              return (
+                                <button
+                                  key={m.id}
+                                  onClick={() => { handleModel(m.id); setModelOpen(false) }}
+                                  className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                                    isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
+                                  }`}
+                                >
+                                  <span className="flex-1 text-left">{m.label}</span>
+                                  {isActive && <span className="text-primary shrink-0">✓</span>}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
               {streaming ? (
                 <button
                   onClick={stop}
