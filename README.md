@@ -14,6 +14,11 @@
   </tr>
 </table>
 
+<p align="center">
+  <img src="docs/screenshots/05-kiosk.jpg" width="280" alt="Kiosk mode: same app with hidden controls, custom theme, and transparent server-side web search"><br>
+  <sub><b>The same app in kiosk mode</b> — rebranded with a custom theme, history sidebar / web search / MCP picker hidden, and web search still running transparently server-side (note the live answer about a .NET release date).</sub>
+</p>
+
 Embeddable AI chatbot framework. Drop-in branding, kiosk-friendly, MCP-ready.
 
 A single Next.js app you self-host. Mount a config volume, point it at any of 12 LLM providers, and serve a polished chat UI from a Docker container in under a minute. Built to embed in third-party sites (support widget, demo kiosk, internal tool) without code changes.
