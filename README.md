@@ -1,6 +1,6 @@
 # Magpie
 
-[![version](https://img.shields.io/badge/version-0.2.1-2ea44f.svg)](https://github.com/cordfuse/magpie/releases)
+[![version](https://img.shields.io/badge/version-0.3.0-2ea44f.svg)](https://github.com/cordfuse/magpie/releases)
 [![license](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 
 <table>
@@ -47,6 +47,8 @@ A single Next.js app, no database, no signup. Point it at any of 12 LLM provider
 - **Drop-in branding** — edit `config/magpie.config.json` (app name, welcome message, starter prompts, theme colors, favicon, PWA icons). Drop a `config/custom.css` for fine-grained styling (fonts, per-area colors). Next page request picks up the change. No rebuild.
 - **25 built-in themes + custom themes + per-area CSS hooks** — 13 dark + 12 light shipped; add your own under `themes[]` in the config. The header, assistant bubble, and composer pill each carry a dedicated CSS class so deployments can restyle one without dragging the others.
 - **Document + image attachments** — PDF, DOCX, XLSX, plain text, images. Extracted server-side.
+- **Embeddable** — drop an `<iframe>` into any page; no `X-Frame-Options` by default. Kiosk flags + JWT-scoped per-iframe storage make it work cleanly as a support widget or in-app assistant. See [Embedding (iframe)](#embedding-iframe).
+- **One-click transcript export** — Download icon in the header saves the current chat as Markdown.
 - **PWA-ready** — manifest, installable on Android Chrome and desktop browsers.
 - **No database** — conversations persist in browser `localStorage` (unless kiosk mode disables persistence).
 
@@ -272,6 +274,49 @@ Example `custom.css` swapping the font and giving the header its own color:
   --header-bg: #1a1a2e;
 }
 ```
+
+## Embedding (iframe)
+
+Magpie ships no `X-Frame-Options` or `frame-ancestors` headers by default, so any page on any origin can embed it in an `<iframe>`. Drop the snippet below into your site:
+
+```html
+<iframe
+  src="https://your-magpie-host.example.com/"
+  style="width: 100%; height: 600px; border: 0; border-radius: 12px;"
+  title="AI chat"
+  allow="clipboard-write"
+  loading="lazy"
+></iframe>
+```
+
+For a bottom-right floating chat bubble (the typical support-widget pattern), wrap it in a fixed-position container:
+
+```html
+<div style="position: fixed; bottom: 16px; right: 16px; width: min(380px, 100vw); height: min(640px, 80vh); z-index: 9999;">
+  <iframe
+    src="https://your-magpie-host.example.com/"
+    style="width: 100%; height: 100%; border: 0; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.18);"
+    title="AI chat"
+    allow="clipboard-write"
+  ></iframe>
+</div>
+```
+
+**Recommended kiosk flags for embedded use** (`docker/.env`):
+
+```bash
+MAGPIE_SHOW_HEADER=0          # no second app header inside your site's chrome
+MAGPIE_SHOW_SETTINGS=0        # don't expose provider/system-prompt settings
+MAGPIE_PERSIST_CHAT=0         # iframes get isolated localStorage anyway
+MAGPIE_SHOW_MODEL_PICKER=0    # force a fixed provider/model via MAGPIE_PROVIDER+MAGPIE_MODEL
+```
+
+**Security notes:**
+
+- Magpie is served over HTTPS in any real embed scenario — browsers refuse mixed-content iframes on HTTPS parent pages.
+- The parent page's CSP must permit the Magpie origin in `frame-src` if a strict CSP is in place. Example: `Content-Security-Policy: frame-src https://your-magpie-host.example.com;`
+- Each browser device gets a JWT-signed `magpie_token` cookie scoped to the Magpie origin — iframes are isolated, so an embedded Magpie has its own conversation history, separate from a direct visit to the same host.
+- To restrict who can embed Magpie, add a `Content-Security-Policy: frame-ancestors 'self' https://your-customer.com;` header at the Magpie reverse proxy (Caddy `header` directive). Default behaviour is allow-all because the "drop-in" positioning would be undermined by a default lockdown.
 
 ## Repo layout
 

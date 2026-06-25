@@ -40,6 +40,47 @@ export function clearAllConversations() {
   localStorage.removeItem(CONV_KEY)
 }
 
+// Serialize one conversation to a markdown transcript suitable for download.
+// Includes title, export timestamp, every turn with role label, and any
+// source citations the assistant produced. Attachment binaries are not
+// embedded — file names only — since markdown can't carry binary data.
+export function conversationToMarkdown(c: Conversation): string {
+  const lines: string[] = []
+  lines.push(`# ${c.title}`, '')
+  lines.push(`_Exported ${new Date().toISOString()}_`, '', '---', '')
+  for (const m of c.messages) {
+    lines.push(m.role === 'user' ? '## You' : '## Assistant', '')
+    lines.push(m.content || '_(empty)_', '')
+    if (m.attachments?.length) {
+      lines.push('_Attachments:_')
+      for (const a of m.attachments) lines.push(`- ${a.name} (${a.mimeType})`)
+      lines.push('')
+    }
+    if (m.sources?.length) {
+      lines.push('_Sources:_')
+      for (const s of m.sources) lines.push(`- [${s.title || s.url}](${s.url})`)
+      lines.push('')
+    }
+    lines.push('---', '')
+  }
+  return lines.join('\n')
+}
+
+// Trigger a browser download of `text` as the file at `filename`. Sticks
+// the blob into a temporary <a download> and clicks it. Standard pattern —
+// no library needed.
+export function downloadTextFile(text: string, filename: string, mime: string) {
+  const blob = new Blob([text], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export function autoTitle(messages: ChatMessage[]): string {
   const first = messages.find(m => m.role === 'user')?.content ?? 'New chat'
   return first.length > 42 ? first.slice(0, 42).trimEnd() + '…' : first
