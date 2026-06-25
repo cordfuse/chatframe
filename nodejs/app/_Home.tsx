@@ -101,6 +101,9 @@ function getMagpieBranding(): MagpieBranding {
 // Kiosk visibility flags from window.__MAGPIE.flags. All default true (full
 // UI) when the global isn't present, so non-kiosk SSR/tests behave normally.
 interface MagpieFlags {
+  showHeader: boolean
+  showHeaderIcon: boolean
+  showHeaderTitle: boolean
   showSettings: boolean
   persistChat: boolean
   showWebSearch: boolean
@@ -110,6 +113,7 @@ interface MagpieFlags {
 }
 function getMagpieFlags(): MagpieFlags {
   const fallback = {
+    showHeader: true, showHeaderIcon: true, showHeaderTitle: true,
     showSettings: true, persistChat: true,
     showWebSearch: true, showMcp: true, showModelPicker: true,
     showAttachments: true,
@@ -119,6 +123,9 @@ function getMagpieFlags(): MagpieFlags {
   const f = (window as any).__MAGPIE?.flags
   if (!f || typeof f !== 'object') return fallback
   return {
+    showHeader:      f.showHeader      !== false,
+    showHeaderIcon:  f.showHeaderIcon  !== false,
+    showHeaderTitle: f.showHeaderTitle !== false,
     showSettings:    f.showSettings    !== false,
     persistChat:     f.persistChat     !== false,
     showWebSearch:   f.showWebSearch   !== false,
@@ -865,7 +872,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
   return (
     <div className="group flex flex-col items-start gap-0.5">
       <div className="flex items-end gap-1.5 max-w-full">
-        <div className="min-w-0 rounded-2xl rounded-bl-sm bg-surface px-4 py-3 text-sm text-fg">
+        <div className="magpie-assistant-bubble min-w-0 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-fg">
           {isEmptyStreaming ? (
             <span className="inline-flex gap-1 items-end h-4">
               <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" />
@@ -990,10 +997,13 @@ export default function Home({
     // Register the service worker so Chrome considers the app installable.
     // /sw.js is a minimal SW (fetch handler, no caching) — its presence is
     // what unlocks the "Install app" prompt; without it, "Add to home
-    // screen" only creates a plain shortcut. Failures are silent because
-    // an unavailable SW shouldn't break the chat.
+    // screen" only creates a plain shortcut. We surface failures to the
+    // console so PWA-install regressions are debuggable (was silent before
+    // and that hid real errors). Doesn't throw — the chat works regardless.
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => { /* ignore */ })
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.info('[magpie] SW registered, scope:', reg.scope))
+        .catch(err => console.warn('[magpie] SW registration failed:', err))
     }
     const t = getTheme()
     setTheme(t)
@@ -1489,7 +1499,8 @@ export default function Home({
 
       {/* main column */}
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
-        <header className="magpie-header px-3 py-3 flex items-center gap-2 shrink-0 bg-surface z-10">
+        {flags.showHeader && (
+        <header className="magpie-header px-3 py-3 flex items-center gap-2 shrink-0 z-10">
           {flags.persistChat && (
             <button
               onClick={() => setSidebarOpen(true)}
@@ -1500,10 +1511,12 @@ export default function Home({
               <MenuIcon />
             </button>
           )}
-          <span className="flex items-center gap-1.5">
-            <MagpieIcon />
-            <h1 className="text-sm font-medium text-fg">{appName}</h1>
-          </span>
+          {(flags.showHeaderIcon || flags.showHeaderTitle) && (
+            <span className="flex items-center gap-1.5">
+              {flags.showHeaderIcon && <MagpieIcon />}
+              {flags.showHeaderTitle && <h1 className="text-sm font-medium text-fg">{appName}</h1>}
+            </span>
+          )}
           <div className="flex-1" />
           {activeId && flags.persistChat && (
             <button
@@ -1543,6 +1556,7 @@ export default function Home({
             </button>
           )}
         </header>
+        )}
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
@@ -1552,7 +1566,7 @@ export default function Home({
                   ? (
                     <div className="group flex flex-col items-start gap-0.5">
                       <div className="flex items-end gap-1.5 max-w-full">
-                        <div className="min-w-0 rounded-2xl rounded-bl-sm bg-surface px-4 py-3 text-sm text-fg">
+                        <div className="magpie-assistant-bubble min-w-0 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-fg">
                           <div className="prose prose-sm max-w-none [&>*]:my-2 [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_a]:text-primary [&_a]:underline [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-surface-2 [&_pre]:bg-surface-2 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto">
                             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock, table: TableBlock }}>{welcomeMessage}</ReactMarkdown>
                           </div>
@@ -1619,7 +1633,7 @@ export default function Home({
           <input ref={photosInputRef}   type="file" accept="image/*"                         className="hidden" onChange={onPickFile('image')} />
           <input ref={documentInputRef} type="file" accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.json,.csv,.xml,.html,.htm,.rtf,.yaml,.yml,.log" className="hidden" onChange={onPickFile('document')} />
 
-          <div className="max-w-3xl mx-auto rounded-3xl border border-white/10 bg-surface transition-colors focus-within:border-primary/40">
+          <div className="magpie-composer-pill max-w-3xl mx-auto rounded-3xl border border-white/10 transition-colors focus-within:border-primary/40">
             {/* pending attachment chips (above the textarea) */}
             {pendingAttachments.length > 0 && (
               <div className="flex flex-wrap gap-2 px-3 pt-3">
@@ -1653,6 +1667,82 @@ export default function Home({
                 ))}
               </div>
             )}
+
+            {/* Model pill — moved above the textarea so it has its own row
+                instead of competing for space with the action buttons at
+                the bottom. Hidden in kiosk mode → server uses MAGPIE_PROVIDER
+                + MAGPIE_MODEL env defaults regardless of any stored client
+                preference. */}
+            {providers.length > 0 && flags.showModelPicker && (() => {
+              const providerInfo = providers.find(p => p.id === provider)
+              if (!providerInfo) return null
+              const modelsForDropdown = liveModels[providerInfo.id] ?? providerInfo.models
+              const allKnownModels = [...providerInfo.models, ...(liveModels[providerInfo.id] ?? [])]
+              const modelInfo = allKnownModels.find(m => m.id === model)
+              const openDropdown = async () => {
+                setModelOpen(o => !o)
+                if (modelOpen) return
+                if (providerInfo.category === 'local' && !liveModels[providerInfo.id]) {
+                  setLiveModelsLoading(true)
+                  try {
+                    const res = await getProviderModels(providerInfo.id)
+                    setLiveModels(prev => ({ ...prev, [providerInfo.id]: res.models }))
+                  } catch (e) {
+                    console.warn('live models fetch failed:', e)
+                  } finally {
+                    setLiveModelsLoading(false)
+                  }
+                }
+              }
+              return (
+                <div className="relative px-2.5 pt-2.5">
+                  <button
+                    onClick={openDropdown}
+                    className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1.5 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+                    title={`${providerInfo.label} — change model`}
+                  >
+                    <span className="truncate max-w-[10rem]">{modelInfo?.label ?? model}</span>
+                    <ChevronIcon open={modelOpen} />
+                  </button>
+                  {modelOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setModelOpen(false)} />
+                      {/* Opens downward (top-full mt-1) — the pill now sits
+                          at the top of the composer, so dropping the menu
+                          UP would float it into the chat area; dropping
+                          DOWN keeps it within the composer's frame. */}
+                      <div className="absolute left-2.5 top-full z-40 mt-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[50vh] overflow-y-auto">
+                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface flex items-center justify-between">
+                          <span>{providerInfo.label}</span>
+                          {providerInfo.category === 'local' && liveModelsLoading && <span className="text-fg-4">…</span>}
+                        </p>
+                        {modelsForDropdown.length === 0 ? (
+                          <p className="px-3 py-3 text-[11px] text-fg-4">
+                            {providerInfo.category === 'local'
+                              ? 'No models installed. Pull or load one on the server.'
+                              : 'No models available.'}
+                          </p>
+                        ) : modelsForDropdown.map(m => {
+                          const isActive = model === m.id
+                          return (
+                            <button
+                              key={m.id}
+                              onClick={() => { handleModel(m.id); setModelOpen(false) }}
+                              className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                                isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
+                              }`}
+                            >
+                              <span className="flex-1 text-left">{m.label}</span>
+                              {isActive && <span className="text-primary shrink-0">✓</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })()}
 
             <textarea
               ref={textareaRef}
@@ -1787,80 +1877,6 @@ export default function Home({
                     )}
                   </div>
                 )}
-              {/* Model pill — opens upward from the composer. Hidden in
-                  kiosk mode → server uses MAGPIE_PROVIDER + MAGPIE_MODEL env
-                  defaults regardless of any stored client preference. */}
-              <div>
-                {providers.length > 0 && flags.showModelPicker && (() => {
-                  const providerInfo = providers.find(p => p.id === provider)
-                  if (!providerInfo) return null
-                  // Live-discovered models trump the curated registry list
-                  // (matters for local providers: we can't know what the
-                  // operator has actually installed without probing).
-                  const modelsForDropdown = liveModels[providerInfo.id] ?? providerInfo.models
-                  const allKnownModels = [...providerInfo.models, ...(liveModels[providerInfo.id] ?? [])]
-                  const modelInfo = allKnownModels.find(m => m.id === model)
-                  const openDropdown = async () => {
-                    setModelOpen(o => !o)
-                    if (modelOpen) return  // we're closing it
-                    if (providerInfo.category === 'local' && !liveModels[providerInfo.id]) {
-                      setLiveModelsLoading(true)
-                      try {
-                        const res = await getProviderModels(providerInfo.id)
-                        setLiveModels(prev => ({ ...prev, [providerInfo.id]: res.models }))
-                      } catch (e) {
-                        console.warn('live models fetch failed:', e)
-                      } finally {
-                        setLiveModelsLoading(false)
-                      }
-                    }
-                  }
-                  return (
-                    <div className="relative">
-                      <button
-                        onClick={openDropdown}
-                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1.5 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
-                        title={`${providerInfo.label} — change model`}
-                      >
-                        <span className="truncate max-w-[10rem]">{modelInfo?.label ?? model}</span>
-                        <ChevronIcon open={modelOpen} />
-                      </button>
-                      {modelOpen && (
-                        <>
-                          <div className="fixed inset-0 z-30" onClick={() => setModelOpen(false)} />
-                          <div className="absolute left-0 bottom-full z-40 mb-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[50vh] overflow-y-auto">
-                            <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface flex items-center justify-between">
-                              <span>{providerInfo.label}</span>
-                              {providerInfo.category === 'local' && liveModelsLoading && <span className="text-fg-4">…</span>}
-                            </p>
-                            {modelsForDropdown.length === 0 ? (
-                              <p className="px-3 py-3 text-[11px] text-fg-4">
-                                {providerInfo.category === 'local'
-                                  ? 'No models installed. Pull or load one on the server.'
-                                  : 'No models available.'}
-                              </p>
-                            ) : modelsForDropdown.map(m => {
-                              const isActive = model === m.id
-                              return (
-                                <button
-                                  key={m.id}
-                                  onClick={() => { handleModel(m.id); setModelOpen(false) }}
-                                  className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
-                                    isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
-                                  }`}
-                                >
-                                  <span className="flex-1 text-left">{m.label}</span>
-                                  {isActive && <span className="text-primary shrink-0">✓</span>}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )
-                })()}
-              </div>
               </div>
               {streaming ? (
                 <button

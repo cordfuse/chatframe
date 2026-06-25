@@ -119,6 +119,9 @@ function locateConfigFile(): string | null {
 }
 
 export interface KioskFlags {
+  showHeader: boolean
+  showHeaderIcon: boolean
+  showHeaderTitle: boolean
   showSettings: boolean
   persistChat: boolean
   showWebSearch: boolean
@@ -130,6 +133,11 @@ export interface KioskFlags {
 interface LoadedConfig {
   config: MagpieConfig
   themeCss: string
+  // Raw CSS read from <configDir>/custom.css (if the file exists). Injected
+  // into <head> after themeCss so it can override any built-in token. Sourced
+  // from a real CSS file so operators get proper editor support — no JSON
+  // string escaping. Drop the file and refresh; no rebuild.
+  customCss: string
   allowedThemeIds: string[]
   defaultTheme: string
   themeColor: string
@@ -151,6 +159,9 @@ function envBool(name: string, defaultValue: boolean): boolean {
 
 export function loadKioskFlags(): KioskFlags {
   return {
+    showHeader:      envBool('MAGPIE_SHOW_HEADER',       true),
+    showHeaderIcon:  envBool('MAGPIE_SHOW_HEADER_ICON',  true),
+    showHeaderTitle: envBool('MAGPIE_SHOW_HEADER_TITLE', true),
     showSettings:    envBool('MAGPIE_SHOW_SETTINGS',     true),
     persistChat:     envBool('MAGPIE_PERSIST_CHAT',      true),
     showWebSearch:   envBool('MAGPIE_SHOW_WEB_SEARCH',   true),
@@ -215,7 +226,16 @@ export function loadMagpieConfig(): LoadedConfig {
 
   const themeColor = config.themes.find(t => t.id === defaultTheme)?.colors.bg ?? BUILT_IN_BG_FALLBACK
 
-  return { config, themeCss, allowedThemeIds, defaultTheme, themeColor, flags: loadKioskFlags() }
+  // Optional operator stylesheet. Lives next to magpie.config.json in the
+  // mounted config volume so it can be edited with full editor support
+  // (syntax highlighting, etc.) rather than as an escaped JSON string.
+  // Missing file is normal — most deployments don't need it.
+  let customCss = ''
+  try {
+    customCss = fs.readFileSync(path.join(getConfigDir(), 'custom.css'), 'utf-8')
+  } catch { /* file absent — no custom CSS for this deployment */ }
+
+  return { config, themeCss, customCss, allowedThemeIds, defaultTheme, themeColor, flags: loadKioskFlags() }
 }
 
 // Built-in theme IDs — re-exported so client-side code can use them as a

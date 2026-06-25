@@ -36,7 +36,7 @@ export async function generateViewport(): Promise<Viewport> {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { config, themeCss, allowedThemeIds, defaultTheme, flags } = loadMagpieConfig()
+  const { config, themeCss, customCss, allowedThemeIds, defaultTheme, flags } = loadMagpieConfig()
 
   // Inline pre-hydration theme bootstrap: build a JS map of allowed theme
   // IDs (built-ins + custom) so the picker's stored choice validates before
@@ -60,6 +60,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {themeCss && (
           <style dangerouslySetInnerHTML={{ __html: themeCss }} />
+        )}
+        {customCss && (
+          // Operator stylesheet, read from <configDir>/custom.css if
+          // present. Loaded AFTER the theme block so deployments can
+          // override any built-in theme variable (--surface, --header-bg,
+          // --font-sans, etc.) or add @font-face / @import rules for
+          // custom fonts. The </style> escape guards against accidental
+          // injection from the operator's own CSS (comments, selectors).
+          <style dangerouslySetInnerHTML={{ __html: customCss.replace(/<\/style/gi, '<\\/style') }} />
         )}
         <script dangerouslySetInnerHTML={{ __html: configBootstrap + themeBootstrap }} />
       </head>

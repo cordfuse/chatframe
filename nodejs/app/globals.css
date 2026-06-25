@@ -559,12 +559,27 @@ html, body {
   font-weight: 600;
 }
 
+/* ─── Per-area surface tokens ────────────────────────────────────────────── */
+/* Each of the three main chrome surfaces (header bar, assistant message
+   bubble, composer pill) gets its own override token so operators can
+   restyle one without dragging the others along. All default to
+   var(--surface) so themes that don't set the per-area token look
+   identical to before.
+   Override examples in custom CSS / theme JSON:
+     --header-bg:           #1a1a2e;
+     --assistant-bubble-bg: rgba(255,255,255,0.04);
+     --composer-bg:         #0f0f1a;
+*/
+.magpie-header           { background-color: var(--header-bg,           var(--surface)); }
+.magpie-assistant-bubble { background-color: var(--assistant-bubble-bg, var(--surface)); }
+.magpie-composer-pill    { background-color: var(--composer-bg,         var(--surface)); }
+
 /* ─── Header fade strip ──────────────────────────────────────────────────── */
 /* The header's surface color extended downward and faded to transparent
    so the chat area's bg shows through smoothly underneath. 100% opaque
    at top (same color as the header itself, no visible seam) → 0% opaque
-   at bottom (chat-area bg fully visible). Theme-agnostic: var(--surface)
-   does the work, no per-theme overrides needed. */
+   at bottom (chat-area bg fully visible). Uses the same --header-bg
+   override so the fade always matches the header's actual color. */
 .magpie-header { position: relative; }
 .magpie-header::after {
   content: '';
@@ -573,7 +588,7 @@ html, body {
   right: 0;
   top: 100%;
   height: 24px;
-  background: linear-gradient(to bottom, var(--surface), transparent);
+  background: linear-gradient(to bottom, var(--header-bg, var(--surface)), transparent);
   pointer-events: none;
 }
 
@@ -581,7 +596,8 @@ html, body {
 /* Mirror of the header fade, flipped: a 24px strip ABOVE the composer that
    goes from transparent (top) to var(--bg) (bottom), so chat content
    scrolling up to the composer dissolves into the page bg instead of
-   hitting a hard edge. */
+   hitting a hard edge. (The page bg, not the composer surface — this
+   fade hides scroll content, not the composer pill.) */
 .magpie-composer { position: relative; }
 .magpie-composer::before {
   content: '';
