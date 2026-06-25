@@ -1,21 +1,28 @@
-import { TokenJS } from 'token.js'
-import { WEB_SEARCH_TOOL, executeToolCall, type SearchResult } from './web-search'
-import { getToolsForServers, executeMcpToolCall, isMcpToolName } from './mcp'
+// Multi-provider chat engine on the Vercel AI SDK v6.
+//
+// Spike status: commit 1 of 3.
+//   1. (this file) Replace token.js with AI SDK; Tavily-only web search,
+//      no caching markers yet — feature parity with the token.js version.
+//   2. Wire Anthropic cacheControl on the system prompt + stable message
+//      prefixes for prompt-caching cost wins on multi-turn chats.
+//   3. Add MAGPIE_SEARCH_BACKEND=native|tavily|auto flag so deployments
+//      can pick provider-native web search (Anthropic web_search_20250305,
+//      OpenAI Responses, Gemini grounding) vs uniform Tavily.
 
-// token.js doesn't re-export its LLMProvider type from the main entry,
-// so we mirror the union here. Update if token.js adds providers.
-export type Provider =
-  | 'openai'
-  | 'anthropic'
-  | 'gemini'
-  | 'cohere'
-  | 'bedrock'
-  | 'mistral'
-  | 'groq'
-  | 'perplexity'
-  | 'ai21'
-  | 'openrouter'
-  | 'openai-compatible'
+import { streamText, generateText, tool, jsonSchema, stepCountIs } from 'ai'
+import type { ModelMessage, LanguageModel } from 'ai'
+import { anthropic } from '@ai-sdk/anthropic'
+import { openai } from '@ai-sdk/openai'
+import { google } from '@ai-sdk/google'
+import { groq } from '@ai-sdk/groq'
+import { mistral } from '@ai-sdk/mistral'
+import { cohere } from '@ai-sdk/cohere'
+import { perplexity } from '@ai-sdk/perplexity'
+import { bedrock } from '@ai-sdk/amazon-bedrock'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+
+import { tavilySearch, type SearchResult } from './web-search'
+import { getToolsForServers, executeMcpToolCall, isMcpToolName } from './mcp'
 
 // ─── Model registry ──────────────────────────────────────────────────────────
 //
@@ -23,10 +30,10 @@ export type Provider =
 //   - the /api/providers endpoint to expose models to the UI
 //   - the /api/chat endpoint to validate the requested model
 //
-// token.js ships a built-in model list that lags the provider's actual
-// frontier — we register the newer models explicitly via extendModelList
-// below so requests against them aren't rejected by token.js's runtime
-// checks. Update both blocks when adding a new model.
+// AI21 was dropped from token.js's coverage in the migration — they don't
+// expose an OpenAI-compatible endpoint and don't have a first-party AI SDK
+// provider package. Re-add via @ai-sdk/openai-compatible if AI21 ever
+// publishes an OpenAI-shaped surface.
 
 export interface ModelInfo {
   id: string
@@ -35,33 +42,46 @@ export interface ModelInfo {
 
 export type ProviderCategory = 'cloud' | 'local'
 
+// Factory: given a model id, return an AI SDK LanguageModel. Captures any
+// per-provider construction needs (local providers need a baseURL up front).
+type ModelFactory = (modelId: string) => LanguageModel
+
 export interface ProviderInfo {
-  id: string                    // display id — unique key, not a token.js Provider for local
+  id: string
   label: string
   category: ProviderCategory
-  tokenjsProvider: Provider     // actual token.js provider used for dispatch
-  envKey?: string               // cloud: env var with the API key
-  baseURLEnv?: string           // local: env var that overrides the baseURL
-  defaultBaseURL?: string       // local: fallback baseURL when env unset
+  envKey?: string                  // cloud: env var that must be set
+  baseURLEnv?: string              // local: env var that overrides baseURL
+  defaultBaseURL?: string          // local: fallback baseURL
   defaultModel: string
   models: ModelInfo[]
+  createModel: ModelFactory
+}
+
+// Lazy local-provider model factories — created on first use so envKey
+// changes between requests get picked up.
+function localFactory(name: string, envKey: string, fallback: string): ModelFactory {
+  return (modelId: string) => {
+    const baseURL = process.env[envKey] || fallback
+    const compat = createOpenAICompatible({ name, baseURL, apiKey: 'local' })
+    return compat(modelId)
+  }
 }
 
 export const PROVIDERS: ProviderInfo[] = [
   // ── cloud ──
   {
-    id: 'anthropic', label: 'Anthropic', category: 'cloud',
-    tokenjsProvider: 'anthropic', envKey: 'ANTHROPIC_API_KEY',
+    id: 'anthropic', label: 'Anthropic', category: 'cloud', envKey: 'ANTHROPIC_API_KEY',
     defaultModel: 'claude-sonnet-4-6',
     models: [
       { id: 'claude-opus-4-7',           label: 'Claude Opus 4.7' },
       { id: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6' },
       { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
     ],
+    createModel: (m) => anthropic(m),
   },
   {
-    id: 'openai', label: 'OpenAI', category: 'cloud',
-    tokenjsProvider: 'openai', envKey: 'OPENAI_API_KEY',
+    id: 'openai', label: 'OpenAI', category: 'cloud', envKey: 'OPENAI_API_KEY',
     defaultModel: 'gpt-4o',
     models: [
       { id: 'gpt-4o',      label: 'GPT-4o' },
@@ -70,80 +90,69 @@ export const PROVIDERS: ProviderInfo[] = [
       { id: 'o1-preview',  label: 'o1 preview' },
       { id: 'o1-mini',     label: 'o1 mini' },
     ],
+    createModel: (m) => openai(m),
   },
   {
-    id: 'gemini', label: 'Google Gemini', category: 'cloud',
-    tokenjsProvider: 'gemini', envKey: 'GEMINI_API_KEY',
-    // Gemini 1.5 was deprecated server-side (v1beta returns 404). 2.5 is the
-    // current stable family; 3.x is preview and would churn the list too fast.
+    id: 'gemini', label: 'Google Gemini', category: 'cloud', envKey: 'GEMINI_API_KEY',
     defaultModel: 'gemini-2.5-flash',
     models: [
       { id: 'gemini-2.5-pro',         label: 'Gemini 2.5 Pro' },
       { id: 'gemini-2.5-flash',       label: 'Gemini 2.5 Flash' },
       { id: 'gemini-2.5-flash-lite',  label: 'Gemini 2.5 Flash-Lite' },
     ],
+    createModel: (m) => google(m),
   },
   {
-    id: 'groq', label: 'Groq', category: 'cloud',
-    tokenjsProvider: 'groq', envKey: 'GROQ_API_KEY',
+    id: 'groq', label: 'Groq', category: 'cloud', envKey: 'GROQ_API_KEY',
     defaultModel: 'llama-3.3-70b-versatile',
     models: [
       { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
       { id: 'llama-3.1-8b-instant',    label: 'Llama 3.1 8B Instant' },
       { id: 'mixtral-8x7b-32768',      label: 'Mixtral 8×7B' },
     ],
+    createModel: (m) => groq(m),
   },
   {
-    id: 'mistral', label: 'Mistral', category: 'cloud',
-    tokenjsProvider: 'mistral', envKey: 'MISTRAL_API_KEY',
+    id: 'mistral', label: 'Mistral', category: 'cloud', envKey: 'MISTRAL_API_KEY',
     defaultModel: 'mistral-large-latest',
     models: [
       { id: 'mistral-large-latest', label: 'Mistral Large' },
       { id: 'mistral-small-latest', label: 'Mistral Small' },
       { id: 'codestral-latest',     label: 'Codestral' },
     ],
+    createModel: (m) => mistral(m),
   },
   {
-    id: 'cohere', label: 'Cohere', category: 'cloud',
-    tokenjsProvider: 'cohere', envKey: 'COHERE_API_KEY',
+    id: 'cohere', label: 'Cohere', category: 'cloud', envKey: 'COHERE_API_KEY',
     defaultModel: 'command-r-plus',
     models: [
       { id: 'command-r-plus', label: 'Command R+' },
       { id: 'command-r',      label: 'Command R' },
       { id: 'command',        label: 'Command' },
     ],
+    createModel: (m) => cohere(m),
   },
   {
-    id: 'perplexity', label: 'Perplexity', category: 'cloud',
-    tokenjsProvider: 'perplexity', envKey: 'PERPLEXITY_API_KEY',
-    defaultModel: 'llama-3.1-sonar-large-128k-online',
+    id: 'perplexity', label: 'Perplexity', category: 'cloud', envKey: 'PERPLEXITY_API_KEY',
+    defaultModel: 'sonar',
     models: [
-      { id: 'llama-3.1-sonar-large-128k-online', label: 'Sonar Large (online)' },
-      { id: 'llama-3.1-sonar-small-128k-online', label: 'Sonar Small (online)' },
+      { id: 'sonar',     label: 'Sonar' },
+      { id: 'sonar-pro', label: 'Sonar Pro' },
     ],
+    createModel: (m) => perplexity(m),
   },
   {
-    id: 'ai21', label: 'AI21', category: 'cloud',
-    tokenjsProvider: 'ai21', envKey: 'AI21_API_KEY',
-    defaultModel: 'jamba-1.5-large',
-    models: [
-      { id: 'jamba-1.5-large', label: 'Jamba 1.5 Large' },
-      { id: 'jamba-1.5-mini',  label: 'Jamba 1.5 Mini' },
-    ],
-  },
-  {
-    id: 'bedrock', label: 'AWS Bedrock', category: 'cloud',
-    tokenjsProvider: 'bedrock', envKey: 'AWS_ACCESS_KEY_ID',
+    id: 'bedrock', label: 'AWS Bedrock', category: 'cloud', envKey: 'AWS_ACCESS_KEY_ID',
     defaultModel: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
     models: [
       { id: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Bedrock Claude 3.5 Sonnet' },
       { id: 'meta.llama3-1-70b-instruct-v1:0',           label: 'Bedrock Llama 3.1 70B' },
     ],
+    createModel: (m) => bedrock(m),
   },
-  // ── local (OpenAI-compatible servers running on the operator's machine) ──
+  // ── local (OpenAI-compatible) ──
   {
     id: 'ollama', label: 'Ollama', category: 'local',
-    tokenjsProvider: 'openai-compatible',
     baseURLEnv: 'OLLAMA_BASE_URL', defaultBaseURL: 'http://localhost:11434/v1',
     defaultModel: 'llama3.1:8b',
     models: [
@@ -155,19 +164,19 @@ export const PROVIDERS: ProviderInfo[] = [
       { id: 'gemma2:9b',    label: 'Gemma 2 9B' },
       { id: 'phi3:14b',     label: 'Phi 3 14B' },
     ],
+    createModel: localFactory('ollama', 'OLLAMA_BASE_URL', 'http://localhost:11434/v1'),
   },
   {
     id: 'llamacpp', label: 'llama.cpp', category: 'local',
-    tokenjsProvider: 'openai-compatible',
     baseURLEnv: 'LLAMACPP_BASE_URL', defaultBaseURL: 'http://localhost:8080/v1',
     defaultModel: 'loaded-model',
     models: [
       { id: 'loaded-model', label: 'Currently loaded model' },
     ],
+    createModel: localFactory('llamacpp', 'LLAMACPP_BASE_URL', 'http://localhost:8080/v1'),
   },
   {
     id: 'lmstudio', label: 'LM Studio', category: 'local',
-    tokenjsProvider: 'openai-compatible',
     baseURLEnv: 'LMSTUDIO_BASE_URL', defaultBaseURL: 'http://localhost:1234/v1',
     defaultModel: 'local-model',
     models: [
@@ -176,64 +185,12 @@ export const PROVIDERS: ProviderInfo[] = [
       { id: 'qwen2.5-7b-instruct',         label: 'Qwen 2.5 7B Instruct' },
       { id: 'mistral-7b-instruct-v0.3',    label: 'Mistral 7B Instruct v0.3' },
     ],
+    createModel: localFactory('lmstudio', 'LMSTUDIO_BASE_URL', 'http://localhost:1234/v1'),
   },
 ]
 
-function resolveBaseURL(p: ProviderInfo): string | undefined {
-  if (p.category !== 'local') return undefined
-  if (p.baseURLEnv && process.env[p.baseURLEnv]) return process.env[p.baseURLEnv]
-  return p.defaultBaseURL
-}
-
 export function findProvider(id: string): ProviderInfo | undefined {
   return PROVIDERS.find(p => p.id === id)
-}
-
-// Register every non-built-in model with token.js. Without this, requests
-// against frontier models that token.js's internal list doesn't know about
-// yet will fail with a runtime "unsupported model" error before they even
-// reach the provider.
-const tokenjs = new TokenJS()
-
-// token.js's `openai-compatible` provider requires baseURL at constructor
-// time — passing it as a call option is silently ignored. We keep one
-// dedicated TokenJS instance per local provider, lazily created on first
-// use, so each carries the right baseURL into every dispatch.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const localInstances = new Map<string, any>()
-function getTokenInstance(p: ProviderInfo) {
-  if (p.category !== 'local') return tokenjs
-  const baseURL = resolveBaseURL(p)
-  if (!baseURL) return tokenjs
-  const key = `${p.id}:${baseURL}`
-  let inst = localInstances.get(key)
-  if (!inst) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    inst = new (TokenJS as any)({ baseURL })
-    localInstances.set(key, inst)
-  }
-  return inst
-}
-const _extended = new Set<string>()
-function ensureExtended(provider: Provider, model: string) {
-  const key = `${provider}:${model}`
-  if (_extended.has(key)) return
-  _extended.add(key)
-  try {
-    // Best-effort — token.js may already know the model, in which case
-    // extendModelList is a harmless override. Some providers (openrouter,
-    // openai-compatible) don't accept extendModelList — we skip them.
-    if (provider === 'openrouter' || provider === 'openai-compatible') return
-    tokenjs.extendModelList(provider, model, {
-      streaming: true, json: false, toolCalls: true, images: true,
-    })
-  } catch {
-    /* token.js validation rejected the model — fall through, the actual
-       chat call will surface a more specific error to the operator. */
-  }
-}
-for (const p of PROVIDERS) {
-  for (const m of p.models) ensureExtended(p.tokenjsProvider, m.id)
 }
 
 export interface PublicProviderInfo {
@@ -250,10 +207,9 @@ export function getAvailableProviders(): PublicProviderInfo[] {
     id: p.id,
     label: p.label,
     category: p.category,
-    // Cloud: available iff its API-key env var is set.
-    // Local: always reported available (we can't cheaply probe the local
-    // server here; the chat call will surface a clear ECONNREFUSED if the
-    // operator's local server isn't actually running).
+    // Cloud: available iff its API-key env is set. Local: always reported
+    // available — chat call surfaces a clear ECONNREFUSED if the server
+    // isn't running, which is more useful than gating the picker here.
     available: p.category === 'local' ? true : !!(p.envKey && process.env[p.envKey]),
     defaultModel: p.defaultModel,
     models: p.models,
@@ -263,14 +219,12 @@ export function getAvailableProviders(): PublicProviderInfo[] {
 export function isModelValidForProvider(provider: string, model: string): boolean {
   const p = PROVIDERS.find(x => x.id === provider)
   if (!p) return false
-  // Local servers can serve any model name the operator has loaded;
-  // we can't enumerate that. Skip strict validation for local providers.
   if (p.category === 'local') return typeof model === 'string' && model.length > 0
   return p.models.some(m => m.id === model)
 }
 
-// OpenAI-style multimodal content. token.js converts this to each provider's
-// native format internally (Anthropic image blocks, Gemini inlineData, etc).
+// ─── Message shape passed in from the chat API route ────────────────────────
+
 export type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } }
@@ -285,71 +239,104 @@ export interface ChatResult {
   sources?: { title: string; url: string }[]
 }
 
-function buildCallOptions(
-  p: ProviderInfo,
-  model: string,
-  apiMessages: unknown[],
-  stream: boolean,
-  tools: unknown[] | null,
-  temperature?: number,
-) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const opts: any = { provider: p.tokenjsProvider, model, messages: apiMessages, stream }
-  // For openai-compatible providers token.js requires the baseURL in the
-  // constructor (handled by getTokenInstance) but still expects a non-empty
-  // apiKey on the call. Most local servers accept any string.
-  if (p.category === 'local') opts.apiKey = 'local'
-  if (tools && tools.length > 0) opts.tools = tools
-  if (typeof temperature === 'number') opts.temperature = temperature
-  return opts
+// Translate our incoming wire shape to AI SDK's ModelMessage[] (system goes
+// in a separate `system` field on streamText, so it's not in this list).
+function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
+  return messages.map(m => {
+    if (typeof m.content === 'string') {
+      return { role: m.role, content: m.content }
+    }
+    // Multimodal content — translate image_url blocks to AI SDK's image part
+    // shape and text blocks to text parts.
+    return {
+      role: m.role,
+      content: m.content.map(block => {
+        if (block.type === 'text') return { type: 'text' as const, text: block.text }
+        return { type: 'image' as const, image: new URL(block.image_url.url) }
+      }),
+    }
+  }) as ModelMessage[]
 }
 
-// Build the per-request tool list: web_search (if enabled) plus all tools
-// from the user's selected MCP servers. Returns null if no tools are active
-// (so we don't pass an empty array to providers that complain).
-async function buildToolList(
+// ─── Tool definitions ───────────────────────────────────────────────────────
+
+// Sources captured during a run so the UI can render them as citations.
+// Populated only by the Tavily web_search tool (MCP outputs are free-form).
+interface SourcesCollector { sources: { title: string; url: string }[] }
+
+function buildTavilySearchTool(collector: SourcesCollector) {
+  return tool({
+    description:
+      'Search the web for current information. Use for facts that may have changed since training, ' +
+      'news, current events, or anything requiring up-to-date knowledge. Returns ranked results with snippets.',
+    inputSchema: jsonSchema<{ query: string; max_results?: number }>({
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'The search query — be specific and concise.' },
+        max_results: {
+          type: 'number',
+          description: 'Number of results to return (1-10). Default 5.',
+          minimum: 1, maximum: 10,
+        },
+      },
+      required: ['query'],
+    }),
+    execute: async ({ query, max_results }) => {
+      const out = await tavilySearch(query, max_results ?? 5)
+      // Capture for UI citation rendering.
+      for (const r of out.results) collector.sources.push({ title: r.title, url: r.url })
+      return out
+    },
+  })
+}
+
+// Wrap each MCP server's tools as AI SDK tools. Names are kept namespaced
+// (<serverId>__<toolName>) to avoid collisions across servers.
+async function buildMcpTools(serverIds: string[]) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: Record<string, any> = {}
+  if (!serverIds.length) return out
+  const mcpTools = await getToolsForServers(serverIds)
+  for (const t of mcpTools) {
+    out[t.function.name] = tool({
+      description: t.function.description,
+      // MCP tools come with arbitrary JSON Schemas — we accept whatever
+      // shape the server declares and pass the validated args through.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      inputSchema: jsonSchema<Record<string, unknown>>(t.function.parameters as any),
+      execute: async (args) => {
+        if (!isMcpToolName(t.function.name)) {
+          return { error: `Tool '${t.function.name}' is not a known MCP tool` }
+        }
+        const raw = await executeMcpToolCall(t.function.name, args)
+        try { return JSON.parse(raw) } catch { return { text: raw } }
+      },
+    })
+  }
+  return out
+}
+
+// Build the per-request tool map for AI SDK. Tavily web_search (when
+// enabled) plus any MCP server tools the user selected.
+async function buildTools(
   webSearch: boolean,
   mcpServerIds: string[] | undefined,
-): Promise<unknown[] | null> {
-  const tools: unknown[] = []
-  if (webSearch) tools.push(WEB_SEARCH_TOOL)
+  sources: SourcesCollector,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tools: Record<string, any> = {}
+  if (webSearch && process.env.TAVILY_API_KEY) {
+    tools.web_search = buildTavilySearchTool(sources)
+  }
   if (mcpServerIds && mcpServerIds.length > 0) {
-    const mcpTools = await getToolsForServers(mcpServerIds)
-    for (const t of mcpTools) tools.push(t)
+    Object.assign(tools, await buildMcpTools(mcpServerIds))
   }
-  return tools.length > 0 ? tools : null
+  return tools
 }
 
-// Dispatch a tool call to either the built-in web_search executor or the
-// matching MCP client. Always returns a string (the model's tool message).
-async function dispatchToolCall(name: string, argsJson: string): Promise<string> {
-  if (isMcpToolName(name)) {
-    try {
-      const args = argsJson ? JSON.parse(argsJson) : {}
-      return await executeMcpToolCall(name, args)
-    } catch (err) {
-      return JSON.stringify({ error: err instanceof Error ? err.message : 'MCP tool call failed' })
-    }
-  }
-  return executeToolCall(name, argsJson)
-}
-
-// Safety limit on tool-call rounds — prevents a model from looping
-// indefinitely (search → think → search → think → ...).
 const MAX_TOOL_ROUNDS = 5
 
-interface AccumulatedToolCall {
-  id: string
-  type: 'function'
-  function: { name: string; arguments: string }
-}
-
-interface SystemMessage { role: 'system'; content: string }
-interface UserMessage   { role: 'user'; content: string | ContentBlock[] }
-interface AsstTextMsg   { role: 'assistant'; content: string }
-interface AsstToolMsg   { role: 'assistant'; content: string | null; tool_calls: AccumulatedToolCall[] }
-interface ToolResultMsg { role: 'tool'; tool_call_id: string; content: string }
-type WireMessage = SystemMessage | UserMessage | AsstTextMsg | AsstToolMsg | ToolResultMsg
+// ─── Public API (signatures preserved from the token.js version) ────────────
 
 export interface RunChatOptions {
   webSearch?: boolean
@@ -357,8 +344,6 @@ export interface RunChatOptions {
   mcpServers?: string[]
 }
 
-// Yielded by runChatStream — text deltas plus optional events the route
-// can forward to the UI (search-in-progress, sources after a search round).
 export type StreamEvent =
   | { type: 'delta'; content: string }
   | { type: 'tool_running'; name: string; query?: string }
@@ -374,47 +359,22 @@ export async function runChat(
   const p = findProvider(providerId)
   if (!p) throw new Error(`Unknown provider '${providerId}'`)
 
-  const inst = getTokenInstance(p)
-  const wireMessages: WireMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...messages.map(m => ({ role: m.role, content: m.content })) as (UserMessage | AsstTextMsg)[],
-  ]
-
   const sources: { title: string; url: string }[] = []
-  const tools = await buildToolList(!!options.webSearch, options.mcpServers)
+  const tools = await buildTools(!!options.webSearch, options.mcpServers, { sources })
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await inst.chat.completions.create(
-      buildCallOptions(p, model, wireMessages, false, tools, options.temperature),
-    )
-    const choice = response.choices[0]
-    const usage = response.usage
-    if (usage) console.log(`[chat] round=${round} in=${usage.prompt_tokens} out=${usage.completion_tokens}`)
+  const result = await generateText({
+    model: p.createModel(model),
+    system: systemPrompt,
+    messages: toModelMessages(messages),
+    tools: Object.keys(tools).length ? tools : undefined,
+    stopWhen: stepCountIs(MAX_TOOL_ROUNDS),
+    ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
+  })
 
-    const msg = choice?.message
-    const toolCalls = (msg?.tool_calls ?? []) as AccumulatedToolCall[]
-    if (!toolCalls.length) {
-      return { message: msg?.content ?? '', sources: sources.length ? sources : undefined }
-    }
-
-    wireMessages.push({ role: 'assistant', content: msg?.content ?? null, tool_calls: toolCalls })
-    for (const tc of toolCalls) {
-      const result = await dispatchToolCall(tc.function.name, tc.function.arguments)
-      wireMessages.push({ role: 'tool', tool_call_id: tc.id, content: result })
-      // Mine sources for the UI (web_search results only — MCP tool outputs
-      // are free-form and don't share the SearchResult shape).
-      if (tc.function.name === 'web_search') {
-        try {
-          const parsed = JSON.parse(result) as { results?: SearchResult[] }
-          if (Array.isArray(parsed.results)) {
-            for (const r of parsed.results) sources.push({ title: r.title, url: r.url })
-          }
-        } catch { /* skip */ }
-      }
-    }
+  return {
+    message: result.text,
+    sources: sources.length ? sources : undefined,
   }
-
-  return { message: '(reached max tool-call rounds)', sources: sources.length ? sources : undefined }
 }
 
 export async function* runChatStream(
@@ -427,84 +387,63 @@ export async function* runChatStream(
   const p = findProvider(providerId)
   if (!p) throw new Error(`Unknown provider '${providerId}'`)
 
-  const inst = getTokenInstance(p)
-  const wireMessages: WireMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...messages.map(m => ({ role: m.role, content: m.content })) as (UserMessage | AsstTextMsg)[],
-  ]
+  // Sources collector — passed into the tool factory so the Tavily execute()
+  // can push results as it runs. We yield them to the UI as 'sources' events
+  // after each tool round completes.
+  const sourcesCollector: SourcesCollector = { sources: [] }
+  const tools = await buildTools(!!options.webSearch, options.mcpServers, sourcesCollector)
 
-  const tools = await buildToolList(!!options.webSearch, options.mcpServers)
+  const result = streamText({
+    model: p.createModel(model),
+    system: systemPrompt,
+    messages: toModelMessages(messages),
+    tools: Object.keys(tools).length ? tools : undefined,
+    stopWhen: stepCountIs(MAX_TOOL_ROUNDS),
+    ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
+  })
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    // token.js's create() is overloaded on `stream: true`; cast the result
-    // to the streaming iterable shape to keep TS happy.
-    const stream = await inst.chat.completions.create(
-      buildCallOptions(p, model, wireMessages, true, tools, options.temperature),
-    ) as unknown as AsyncIterable<{
-      choices: Array<{
-        delta?: {
-          content?: string
-          tool_calls?: Array<{
-            index: number
-            id?: string
-            function?: { name?: string; arguments?: string }
-          }>
+  // Track how many sources we've already yielded so each tool round only
+  // yields the newly-collected ones, not the full accumulating list.
+  let yieldedSources = 0
+
+  for await (const chunk of result.fullStream) {
+    switch (chunk.type) {
+      case 'text-delta':
+        // AI SDK v6 uses `text` on text-delta chunks.
+        if (chunk.text) yield { type: 'delta', content: chunk.text }
+        break
+
+      case 'tool-call': {
+        // Surface the tool-running hint to the UI. Parse query out for nicer
+        // labelling on the web_search case.
+        let query: string | undefined
+        if (chunk.toolName === 'web_search') {
+          const input = chunk.input as { query?: string } | undefined
+          query = input?.query
         }
-        finish_reason?: string | null
-      }>
-    }>
-
-    const accumulatedToolCalls: AccumulatedToolCall[] = []
-    let accumulatedText = ''
-    let finishReason: string | null = null
-
-    for await (const chunk of stream) {
-      const c = chunk.choices[0]
-      if (c?.delta?.content) {
-        accumulatedText += c.delta.content
-        yield { type: 'delta', content: c.delta.content }
+        yield { type: 'tool_running', name: chunk.toolName, query }
+        break
       }
-      if (c?.delta?.tool_calls) {
-        for (const tcDelta of c.delta.tool_calls) {
-          const i = tcDelta.index ?? 0
-          if (!accumulatedToolCalls[i]) {
-            accumulatedToolCalls[i] = { id: '', type: 'function', function: { name: '', arguments: '' } }
-          }
-          if (tcDelta.id) accumulatedToolCalls[i].id = tcDelta.id
-          if (tcDelta.function?.name) accumulatedToolCalls[i].function.name += tcDelta.function.name
-          if (tcDelta.function?.arguments) accumulatedToolCalls[i].function.arguments += tcDelta.function.arguments
+
+      case 'tool-result':
+        // After the tool finished, emit any newly-collected sources.
+        if (sourcesCollector.sources.length > yieldedSources) {
+          const fresh = sourcesCollector.sources.slice(yieldedSources)
+          yieldedSources = sourcesCollector.sources.length
+          yield { type: 'sources', sources: fresh }
         }
-      }
-      if (c?.finish_reason) finishReason = c.finish_reason
-    }
+        break
 
-    const validToolCalls = accumulatedToolCalls.filter(tc => tc?.id && tc.function.name)
-    if (!validToolCalls.length || finishReason !== 'tool_calls') return
+      case 'error':
+        // AI SDK surfaces upstream errors as a typed chunk; rethrow so the
+        // chat route's catch handler formats it for the client.
+        throw chunk.error instanceof Error
+          ? chunk.error
+          : new Error(String((chunk.error as { message?: string })?.message ?? chunk.error))
 
-    wireMessages.push({ role: 'assistant', content: accumulatedText || null, tool_calls: validToolCalls })
-
-    for (const tc of validToolCalls) {
-      // Try to parse the query out for the UI hint.
-      let query: string | undefined
-      try { query = (JSON.parse(tc.function.arguments) as { query?: string }).query } catch { /* skip */ }
-      yield { type: 'tool_running', name: tc.function.name, query }
-
-      const result = await dispatchToolCall(tc.function.name, tc.function.arguments)
-      wireMessages.push({ role: 'tool', tool_call_id: tc.id, content: result })
-
-      // Surface sources to the UI for web_search only — MCP tool results
-      // don't share the SearchResult shape.
-      if (tc.function.name === 'web_search') {
-        try {
-          const parsed = JSON.parse(result) as { results?: SearchResult[] }
-          if (Array.isArray(parsed.results) && parsed.results.length) {
-            yield {
-              type: 'sources',
-              sources: parsed.results.map(r => ({ title: r.title, url: r.url })),
-            }
-          }
-        } catch { /* skip */ }
-      }
+      default:
+        // finish, finish-step, start, reasoning, source — not surfaced today.
+        break
     }
   }
 }
