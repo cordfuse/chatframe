@@ -6,6 +6,8 @@ import {
 import { loadMagpieConfig, loadKioskFlags } from '@/lib/config'
 import { listServers } from '@/lib/server/mcp'
 import { createStream, attachReplay } from '@/lib/server/stream-buffer'
+import { resolveLocalizableString, languageNameForLocale } from '@/lib/i18n'
+import { resolveLocale } from '@/lib/i18n/server'
 
 export const maxDuration = 300
 
@@ -15,9 +17,24 @@ const ENV_MODEL = process.env.MAGPIE_MODEL ?? 'claude-sonnet-4-6'
 // System prompt resolution chain: client per-request → MAGPIE_SYSTEM_PROMPT
 // env → magpie.config.json defaultSystemPrompt → hardcoded fallback.
 // Config is read fresh per request so drop-in JSON changes apply immediately.
-function getDefaultSystemPrompt(): string {
+// The magpie.config.json value may be a per-locale map — resolved to the
+// active locale's string before returning.
+function getDefaultSystemPrompt(locale: string): string {
   if (process.env.MAGPIE_SYSTEM_PROMPT) return process.env.MAGPIE_SYSTEM_PROMPT
-  return loadMagpieConfig().config.defaultSystemPrompt
+  const cfg = loadMagpieConfig().config
+  return resolveLocalizableString(cfg.defaultSystemPrompt, locale)
+}
+
+// Auto-append a one-line language instruction so the model knows to
+// respond in the user's chosen UI language. English is the no-op default
+// since most system prompts and model defaults already use English.
+// Operator can opt out by setting MAGPIE_LOCALE_HINT=0 (mostly useful
+// during testing or for prompts that already handle this).
+function applyLocaleHint(systemPrompt: string, locale: string): string {
+  if (locale === 'en') return systemPrompt
+  if (process.env.MAGPIE_LOCALE_HINT === '0') return systemPrompt
+  const language = languageNameForLocale(locale)
+  return `${systemPrompt}\n\nRespond in ${language} unless the user writes in a different language.`
 }
 
 // Generation defaults — env var (operator deploy default) → hardcoded fallback.
@@ -34,9 +51,11 @@ function resolveTemperature(clientValue: unknown): number {
   if (typeof clientValue === 'number' && Number.isFinite(clientValue)) return clientValue
   return envNumber('MAGPIE_TEMPERATURE') ?? HARDCODED_TEMPERATURE
 }
-function resolveSystemPrompt(clientValue: unknown): string {
-  if (typeof clientValue === 'string' && clientValue.trim().length > 0) return clientValue
-  return getDefaultSystemPrompt()
+function resolveSystemPrompt(clientValue: unknown, locale: string): string {
+  const base = (typeof clientValue === 'string' && clientValue.trim().length > 0)
+    ? clientValue
+    : getDefaultSystemPrompt(locale)
+  return applyLocaleHint(base, locale)
 }
 
 export async function POST(request: NextRequest) {
@@ -158,11 +177,17 @@ export async function POST(request: NextRequest) {
     mcpServers = all.filter(s => s.available).map(s => s.id)
   }
 
-  const systemPrompt = resolveSystemPrompt(clientSystemPrompt)
+  // Resolve the active UI locale from the magpie_locale cookie so the
+  // system prompt picks up its localized variant AND we can auto-append
+  // a "Respond in <language>." instruction. Falls back to the deploy
+  // default (MAGPIE_LOCALE env, then 'en').
+  const { localeCodes, defaultLocale } = loadMagpieConfig()
+  const activeLocale = await resolveLocale(localeCodes, defaultLocale)
+  const systemPrompt = resolveSystemPrompt(clientSystemPrompt, activeLocale)
   const temperature  = resolveTemperature(clientTemperature)
   const runOpts = { webSearch: wantWebSearch, temperature, mcpServers }
 
-  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch} mcps=${mcpServers.length ? mcpServers.join(',') : '-'} temp=${temperature}`)
+  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch} mcps=${mcpServers.length ? mcpServers.join(',') : '-'} temp=${temperature} locale=${activeLocale}`)
 
   if (wantStream) {
     // Decoupled streaming with replay buffer.

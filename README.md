@@ -1,6 +1,6 @@
 # Magpie
 
-[![version](https://img.shields.io/badge/version-0.5.2-2ea44f.svg)](https://github.com/cordfuse/magpie/releases)
+[![version](https://img.shields.io/badge/version-0.6.0-2ea44f.svg)](https://github.com/cordfuse/magpie/releases)
 [![license](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 
 <table>
@@ -291,6 +291,35 @@ Magpie ships with four UI locales built-in: **English, Spanish, French, German**
 3. Otherwise English.
 
 Server-side resolution means SSR renders directly in the chosen language — no hydration flash, no first-paint English-then-swap. The `<html lang>` attribute and voice STT/TTS recognizer locale all align to the active choice.
+
+### Localizing operator content
+
+Branding fields in `magpie.config.json` accept **either** a plain string (used for every locale, backward-compatible) **or** a per-locale object:
+
+```json
+{
+  "welcomeMessage": {
+    "en": "Hi — I'm Magpie. Ask me anything.",
+    "es": "Hola — soy Magpie. Pregúntame lo que quieras.",
+    "de": "Hallo — ich bin Magpie. Frag mich einfach."
+  },
+  "starterPrompts": {
+    "en": ["What's new in .NET 10?", "Explain Kubernetes pods"],
+    "es": ["¿Qué hay de nuevo en .NET 10?", "Explica los pods de Kubernetes"]
+  },
+  "defaultSystemPrompt": {
+    "en": "You are a helpful assistant.",
+    "es": "Eres un asistente útil."
+  },
+  "tagline": "Embeddable AI chatbot framework"
+}
+```
+
+Fields accepting this shape: `welcomeMessage`, `starterPrompts`, `defaultSystemPrompt`, `tagline`. Server resolves to the active locale, falling back to `en` then the first available variant if neither matches.
+
+### AI replies in the user's language
+
+When the active UI locale is non-English, Magpie automatically appends `Respond in <language> unless the user writes in a different language.` to the system prompt. So picking Spanish in the picker means the model answers in Spanish without any operator config. Opt out by setting `MAGPIE_LOCALE_HINT=0` (useful if your system prompt already handles language explicitly).
 
 ### Adding a new language
 

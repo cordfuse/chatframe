@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { loadMagpieConfig } from '@/lib/config'
 import { resolveLocale } from '@/lib/i18n/server'
 import { I18nProvider } from '@/lib/i18n/client'
+import { resolveLocalizableString, resolveLocalizableStringArray } from '@/lib/i18n'
 import './globals.css'
 
 // Re-render the layout per request so a config-file change picks up on the
@@ -24,10 +25,11 @@ const inter = Inter({
 // trigger dynamic evaluation). Lets the config file changes flow without
 // rebuild.
 export async function generateMetadata(): Promise<Metadata> {
-  const { config } = loadMagpieConfig()
+  const { config, localeCodes, defaultLocale } = loadMagpieConfig()
+  const activeLocale = await resolveLocale(localeCodes, defaultLocale)
   return {
     title: config.name,
-    description: config.tagline,
+    description: resolveLocalizableString(config.tagline, activeLocale),
     icons: { apple: config.icon192, icon: config.icon192 },
   }
 }
@@ -51,11 +53,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // React hydrates. Also stashes the config on window so client code can
   // read branding (header text, footer link) without a server round-trip.
   const themeBootstrap = `(function(){try{var T={${allowedThemeIds.map(id => `'${id}':1`).join(',')}};var t=localStorage.getItem('magpie_theme');document.documentElement.setAttribute('data-theme',T[t]?t:'${defaultTheme}')}catch(e){}})()`
+  // Resolve any localizable operator content to the active locale BEFORE
+  // shipping it to the client. The client never sees the per-locale map
+  // shape — by the time strings hit window.__MAGPIE, they're plain values
+  // matching the active locale. (Languages-resolved-at-server-render is
+  // the same pattern as t() lookups; consistent locale story.)
+  const resolvedTagline = resolveLocalizableString(config.tagline, activeLocale)
+  const resolvedWelcome = resolveLocalizableString(config.welcomeMessage, activeLocale)
+  const resolvedStarters = resolveLocalizableStringArray(config.starterPrompts, activeLocale)
+
   const configBootstrap = `window.__MAGPIE=${JSON.stringify({
     name: config.name,
     shortName: config.shortName,
-    tagline: config.tagline,
-    welcomeMessage: config.welcomeMessage,
+    tagline: resolvedTagline,
+    welcomeMessage: resolvedWelcome,
+    starterPrompts: resolvedStarters,
     checkForUpdatesUrl: config.checkForUpdatesUrl,
     defaultTheme,
     allowedThemeIds,

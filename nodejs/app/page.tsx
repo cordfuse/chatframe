@@ -1,5 +1,7 @@
 import Home from './_Home'
 import { loadMagpieConfig } from '@/lib/config'
+import { resolveLocale } from '@/lib/i18n/server'
+import { resolveLocalizableString, resolveLocalizableStringArray } from '@/lib/i18n'
 
 // Root route. Server-reads magpie.config.json so the in-bubble app name
 // matches the rebrand on first paint (no hydration mismatch when a fork
@@ -7,13 +9,14 @@ import { loadMagpieConfig } from '@/lib/config'
 // the next request without a rebuild.
 export const dynamic = 'force-dynamic'
 
-export default function Page() {
-  const { config, flags } = loadMagpieConfig()
+export default async function Page() {
+  const { config, flags, localeCodes, defaultLocale } = loadMagpieConfig()
+  const activeLocale = await resolveLocale(localeCodes, defaultLocale)
   return (
     <Home
       appName={config.name}
-      welcomeMessage={config.welcomeMessage}
-      starterPrompts={config.starterPrompts}
+      welcomeMessage={resolveLocalizableString(config.welcomeMessage, activeLocale)}
+      starterPrompts={resolveLocalizableStringArray(config.starterPrompts, activeLocale)}
       flags={flags}
     />
   )

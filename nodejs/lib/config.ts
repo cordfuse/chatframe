@@ -13,7 +13,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { BUILT_IN_LOCALES } from './i18n'
+import { BUILT_IN_LOCALES, type LocalizableString, type LocalizableStringArray } from './i18n'
 
 // Single source of truth for the customization directory. Used by the
 // config loader, the MCP loader, and the icon-serving route. Set
@@ -45,14 +45,16 @@ export interface CustomTheme {
 export interface MagpieConfig {
   name: string
   shortName: string
-  tagline: string
-  defaultSystemPrompt: string
-  welcomeMessage: string
-  // Clickable prompt chips shown below the welcome bubble (or in place of
-  // the "Start a conversation." placeholder when no welcome is set). Each
-  // chip's text becomes the user's first message on click. Especially
-  // useful in kiosk mode — turns an empty chat into a guided menu.
-  starterPrompts: string[]
+  // Localizable: plain string (used for every locale) OR per-locale map
+  // ({ en: "...", es: "...", ... }). Resolved server-side using the active
+  // request locale before reaching the client. See lib/i18n/index.ts
+  // resolveLocalizableString.
+  tagline: LocalizableString
+  defaultSystemPrompt: LocalizableString
+  welcomeMessage: LocalizableString
+  // Clickable prompt chips shown below the welcome bubble. Localizable:
+  // plain array OR per-locale map of arrays.
+  starterPrompts: LocalizableStringArray
   checkForUpdatesUrl: string
   defaultTheme: string
   hideBuiltInThemes: boolean
@@ -197,15 +199,43 @@ export function loadMagpieConfig(): LoadedConfig {
     try { raw = JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { /* fall through to defaults */ }
   }
 
+  // Helpers — accept either the plain shape (backwards compat) or a
+  // per-locale map. An object with at least one string value is treated
+  // as a locale map; anything else falls back to the default.
+  const parseLocalizableString = (v: unknown, fb: LocalizableString): LocalizableString => {
+    if (typeof v === 'string') return v
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const sanitized: Record<string, string> = {}
+      for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+        if (typeof val === 'string') sanitized[k] = val
+      }
+      if (Object.keys(sanitized).length > 0) return sanitized
+    }
+    return fb
+  }
+  const parseLocalizableStringArray = (v: unknown, fb: LocalizableStringArray): LocalizableStringArray => {
+    if (Array.isArray(v)) {
+      return v.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+    }
+    if (v && typeof v === 'object') {
+      const sanitized: Record<string, string[]> = {}
+      for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+        if (Array.isArray(val)) {
+          sanitized[k] = val.filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+        }
+      }
+      if (Object.keys(sanitized).length > 0) return sanitized
+    }
+    return fb
+  }
+
   const config: MagpieConfig = {
     name: typeof raw.name === 'string' ? raw.name : defaults.name,
     shortName: typeof raw.shortName === 'string' ? raw.shortName : defaults.shortName,
-    tagline: typeof raw.tagline === 'string' ? raw.tagline : defaults.tagline,
-    defaultSystemPrompt: typeof raw.defaultSystemPrompt === 'string' ? raw.defaultSystemPrompt : defaults.defaultSystemPrompt,
-    welcomeMessage: typeof raw.welcomeMessage === 'string' ? raw.welcomeMessage : defaults.welcomeMessage,
-    starterPrompts: Array.isArray(raw.starterPrompts)
-      ? raw.starterPrompts.filter((p: unknown): p is string => typeof p === 'string' && p.trim().length > 0)
-      : defaults.starterPrompts,
+    tagline: parseLocalizableString(raw.tagline, defaults.tagline),
+    defaultSystemPrompt: parseLocalizableString(raw.defaultSystemPrompt, defaults.defaultSystemPrompt),
+    welcomeMessage: parseLocalizableString(raw.welcomeMessage, defaults.welcomeMessage),
+    starterPrompts: parseLocalizableStringArray(raw.starterPrompts, defaults.starterPrompts),
     checkForUpdatesUrl: typeof raw.checkForUpdatesUrl === 'string' ? raw.checkForUpdatesUrl : defaults.checkForUpdatesUrl,
     defaultTheme: typeof raw.defaultTheme === 'string' ? raw.defaultTheme : defaults.defaultTheme,
     hideBuiltInThemes: raw.hideBuiltInThemes === true,

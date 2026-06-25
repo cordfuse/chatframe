@@ -1,5 +1,7 @@
 import Home from '../../_Home'
 import { loadMagpieConfig } from '@/lib/config'
+import { resolveLocale } from '@/lib/i18n/server'
+import { resolveLocalizableString, resolveLocalizableStringArray } from '@/lib/i18n'
 
 // Dynamic route /c/<convId>. Passes the URL's conv id as initialConvId
 // so a hard refresh (or shared link) on a conv URL restores that
@@ -8,13 +10,14 @@ import { loadMagpieConfig } from '@/lib/config'
 // sidebar state survive between conv switches.
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { config, flags } = loadMagpieConfig()
+  const { config, flags, localeCodes, defaultLocale } = loadMagpieConfig()
+  const activeLocale = await resolveLocale(localeCodes, defaultLocale)
   return (
     <Home
       initialConvId={id}
       appName={config.name}
-      welcomeMessage={config.welcomeMessage}
-      starterPrompts={config.starterPrompts}
+      welcomeMessage={resolveLocalizableString(config.welcomeMessage, activeLocale)}
+      starterPrompts={resolveLocalizableStringArray(config.starterPrompts, activeLocale)}
       flags={flags}
     />
   )

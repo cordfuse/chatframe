@@ -5,16 +5,42 @@
   "shortName": "Magpie",
   "tagline": "Embeddable AI chatbot framework",
   "defaultSystemPrompt": "You are a helpful AI assistant.",
-  "$welcomeMessageNote": "If set, rendered as the first assistant bubble whenever the chat is empty (kiosk or not). Markdown supported. Leave empty to show the default 'Start a conversation.' placeholder.",
-  "welcomeMessage": "Hi — I'm a Cordfuse demo of Magpie. I can pull live Microsoft docs via MCP, search the web, and help with anything else you'd ask a smart assistant. Try one of the prompts below, or ask me anything.",
 
-  "$starterPromptsNote": "Clickable pill chips below the welcome bubble. Each prompt is sent verbatim as the user's first message on click. Empty array hides the chip row. Especially useful for kiosk deployments — turns the empty surface into a guided menu.",
-  "starterPrompts": [
-    "What's new in .NET 10?",
-    "Latest news on AI agents",
-    "Explain Kubernetes pods in 3 sentences",
-    "Help me draft a friendly OOO email"
-  ],
+  "$welcomeMessageNote": "Rendered as the first assistant bubble whenever the chat is empty. Plain string OR per-locale object: { en: '...', es: '...', de: '...' }. Markdown supported. Leave empty to show the default 'Start a conversation.' placeholder.",
+  "welcomeMessage": {
+    "en": "Hi — I'm a Cordfuse demo of Magpie. I can pull live Microsoft docs via MCP, search the web, and help with anything else you'd ask a smart assistant. Try one of the prompts below, or ask me anything.",
+    "es": "Hola — soy una demo de Cordfuse de Magpie. Puedo consultar documentación de Microsoft en vivo vía MCP, buscar en la web y ayudarte con cualquier cosa que le preguntarías a un asistente inteligente. Prueba uno de los prompts de abajo o pregúntame lo que quieras.",
+    "fr": "Bonjour — je suis une démo Cordfuse de Magpie. Je peux récupérer la documentation Microsoft en direct via MCP, faire des recherches web et vous aider sur tout ce que vous demanderiez à un assistant intelligent. Essayez l'une des invites ci-dessous ou posez-moi votre question.",
+    "de": "Hallo — ich bin eine Cordfuse-Demo von Magpie. Ich kann Microsoft-Dokumentation live über MCP abrufen, das Web durchsuchen und bei allem helfen, was du einen smarten Assistenten fragen würdest. Probiere einen der Prompts unten oder frag mich einfach."
+  },
+
+  "$starterPromptsNote": "Clickable pill chips below the welcome bubble. Each prompt is sent verbatim as the user's first message on click. Empty array hides the chip row. Plain array OR per-locale object: { en: [...], es: [...] }.",
+  "starterPrompts": {
+    "en": [
+      "What's new in .NET 10?",
+      "Latest news on AI agents",
+      "Explain Kubernetes pods in 3 sentences",
+      "Help me draft a friendly OOO email"
+    ],
+    "es": [
+      "¿Qué hay de nuevo en .NET 10?",
+      "Últimas noticias sobre agentes de IA",
+      "Explica los pods de Kubernetes en 3 frases",
+      "Ayúdame a redactar un email amable de fuera de oficina"
+    ],
+    "fr": [
+      "Quelles sont les nouveautés de .NET 10 ?",
+      "Dernières actualités sur les agents IA",
+      "Explique les pods Kubernetes en 3 phrases",
+      "Aide-moi à rédiger un email d'absence du bureau sympathique"
+    ],
+    "de": [
+      "Was ist neu in .NET 10?",
+      "Aktuelle Neuigkeiten zu KI-Agenten",
+      "Erkläre Kubernetes-Pods in 3 Sätzen",
+      "Hilf mir, eine freundliche Abwesenheitsmail zu schreiben"
+    ]
+  },
   "checkForUpdatesUrl": "https://github.com/cordfuse/magpie/releases",
 
   "$iconNote": "Paths served by the /branding/* route, which streams files from config/icons/. Drop your PNGs into config/icons/ and reference them here as /branding/<filename>. icon192 drives the browser favicon AND the PWA 192 icon; icon512 is PWA only. PWA installs already on a device may keep the OS-cached launcher icon until reinstalled.",

@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { loadMagpieConfig } from '@/lib/config'
+import { resolveLocalizableString } from '@/lib/i18n'
 
 // PWA manifest. Read from magpie.config.json on each request so dropping a
 // new config file picks up immediately (browser/OS will still cache the
@@ -8,7 +9,11 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default function manifest(): MetadataRoute.Manifest {
-  const { config, themeColor } = loadMagpieConfig()
+  const { config, themeColor, defaultLocale } = loadMagpieConfig()
+  // Manifest uses the deploy-default locale (not per-request cookie):
+  // the browser caches the installed PWA's manifest, so picking a per-
+  // request locale here would only be visible during install. Defaulting
+  // to MAGPIE_LOCALE keeps the installed-app description stable.
   return {
     // No `id` field — Chrome falls back to start_url ('/') as the canonical
     // PWA identifier. Previously we set `id: "/?app=<shortName>"` which (a)
@@ -20,7 +25,7 @@ export default function manifest(): MetadataRoute.Manifest {
     // serve as the implicit canonical identifier.
     name: config.name,
     short_name: config.shortName,
-    description: config.tagline,
+    description: resolveLocalizableString(config.tagline, defaultLocale),
     start_url: '/',
     display: 'standalone',
     background_color: themeColor,
