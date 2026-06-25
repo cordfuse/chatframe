@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
-import { loadQuillConfig } from '@/lib/config'
+import { loadMagpieConfig } from '@/lib/config'
 import './globals.css'
 
 // Re-render the layout per request so a config-file change picks up on the
@@ -22,7 +22,7 @@ const inter = Inter({
 // trigger dynamic evaluation). Lets the config file changes flow without
 // rebuild.
 export async function generateMetadata(): Promise<Metadata> {
-  const { config } = loadQuillConfig()
+  const { config } = loadMagpieConfig()
   return {
     title: config.name,
     description: config.tagline,
@@ -31,19 +31,19 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export async function generateViewport(): Promise<Viewport> {
-  const { themeColor } = loadQuillConfig()
+  const { themeColor } = loadMagpieConfig()
   return { themeColor, width: 'device-width', initialScale: 1 }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { config, themeCss, allowedThemeIds, defaultTheme, flags } = loadQuillConfig()
+  const { config, themeCss, allowedThemeIds, defaultTheme, flags } = loadMagpieConfig()
 
   // Inline pre-hydration theme bootstrap: build a JS map of allowed theme
   // IDs (built-ins + custom) so the picker's stored choice validates before
   // React hydrates. Also stashes the config on window so client code can
   // read branding (header text, footer link) without a server round-trip.
-  const themeBootstrap = `(function(){try{var T={${allowedThemeIds.map(id => `'${id}':1`).join(',')}};var t=localStorage.getItem('quill_theme');document.documentElement.setAttribute('data-theme',T[t]?t:'${defaultTheme}')}catch(e){}})()`
-  const configBootstrap = `window.__QUILL=${JSON.stringify({
+  const themeBootstrap = `(function(){try{var T={${allowedThemeIds.map(id => `'${id}':1`).join(',')}};var t=localStorage.getItem('magpie_theme');document.documentElement.setAttribute('data-theme',T[t]?t:'${defaultTheme}')}catch(e){}})()`
+  const configBootstrap = `window.__MAGPIE=${JSON.stringify({
     name: config.name,
     shortName: config.shortName,
     tagline: config.tagline,

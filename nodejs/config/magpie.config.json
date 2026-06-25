@@ -1,12 +1,12 @@
 {
-  "$comment": "Quill branding + theme config. Edit this file in-place on a running instance — the next page load picks up the changes (no rebuild, no restart). For PWA shortcuts already installed on a device, the OS-cached launcher icon won't update until you reinstall the PWA.",
+  "$comment": "Magpie branding + theme config. Edit this file in-place on a running instance — the next page load picks up the changes (no rebuild, no restart). For PWA shortcuts already installed on a device, the OS-cached launcher icon won't update until you reinstall the PWA.",
 
-  "name": "Quill",
-  "shortName": "Quill",
+  "name": "Magpie",
+  "shortName": "Magpie",
   "tagline": "Embeddable AI chatbot framework",
   "defaultSystemPrompt": "You are a helpful AI assistant.",
   "$welcomeMessageNote": "If set, rendered as the first assistant bubble whenever the chat is empty (kiosk or not). Markdown supported. Leave empty to show the default 'Start a conversation.' placeholder.",
-  "welcomeMessage": "Hi — I'm a Cordfuse demo of Quill. I can pull live Microsoft docs via MCP, search the web, and help with anything else you'd ask a smart assistant. Try one of the prompts below, or ask me anything.",
+  "welcomeMessage": "Hi — I'm a Cordfuse demo of Magpie. I can pull live Microsoft docs via MCP, search the web, and help with anything else you'd ask a smart assistant. Try one of the prompts below, or ask me anything.",
 
   "$starterPromptsNote": "Clickable pill chips below the welcome bubble. Each prompt is sent verbatim as the user's first message on click. Empty array hides the chip row. Especially useful for kiosk deployments — turns the empty surface into a guided menu.",
   "starterPrompts": [
@@ -15,7 +15,7 @@
     "Explain Kubernetes pods in 3 sentences",
     "Help me draft a friendly OOO email"
   ],
-  "checkForUpdatesUrl": "https://github.com/cordfuse/quill/releases",
+  "checkForUpdatesUrl": "https://github.com/cordfuse/magpie/releases",
 
   "$iconNote": "Paths served by the /branding/* route, which streams files from config/icons/. Drop your PNGs into config/icons/ and reference them here as /branding/<filename>. icon192 drives the browser favicon AND the PWA 192 icon; icon512 is PWA only. PWA installs already on a device may keep the OS-cached launcher icon until reinstalled.",
   "icon192": "/branding/icon-192.png",

@@ -1,25 +1,25 @@
-// Branding + custom theme config. RUNTIME-loaded from quill.config.json so
+// Branding + custom theme config. RUNTIME-loaded from magpie.config.json so
 // dropping a new file on a hosted instance takes effect on the next request
 // — no rebuild required. Server-only (uses fs); client code receives values
 // via SSR (server components pass as props, or layout.tsx injects them into
 // the rendered HTML).
 //
 // File lookup precedence:
-//   1. $QUILL_CONFIG_PATH if set (explicit file)
-//   2. $QUILL_CONFIG_DIR/quill.config.json if set (operator-mounted volume)
-//   3. <cwd>/config/quill.config.json (default convention; the standalone
+//   1. $MAGPIE_CONFIG_PATH if set (explicit file)
+//   2. $MAGPIE_CONFIG_DIR/magpie.config.json if set (operator-mounted volume)
+//   3. <cwd>/config/magpie.config.json (default convention; the standalone
 //      server chdirs to .next/standalone/, so we also probe its ancestors)
-//   4. <cwd>/quill.config.json (legacy path, kept for ad-hoc setups)
+//   4. <cwd>/magpie.config.json (legacy path, kept for ad-hoc setups)
 
 import fs from 'node:fs'
 import path from 'node:path'
 
 // Single source of truth for the customization directory. Used by the
 // config loader, the MCP loader, and the icon-serving route. Set
-// QUILL_CONFIG_DIR to mount a different volume; default `./config` keeps
+// MAGPIE_CONFIG_DIR to mount a different volume; default `./config` keeps
 // dev simple — the repo ships a populated config/ dir.
 export function getConfigDir(): string {
-  if (process.env.QUILL_CONFIG_DIR) return process.env.QUILL_CONFIG_DIR
+  if (process.env.MAGPIE_CONFIG_DIR) return process.env.MAGPIE_CONFIG_DIR
   return path.join(process.cwd(), 'config')
 }
 
@@ -41,7 +41,7 @@ export interface CustomTheme {
   colors: Partial<Record<ThemeColorKey, string>>
 }
 
-export interface QuillConfig {
+export interface MagpieConfig {
   name: string
   shortName: string
   tagline: string
@@ -64,14 +64,14 @@ export interface QuillConfig {
   icon512: string
 }
 
-const defaults: QuillConfig = {
-  name: 'Quill',
-  shortName: 'Quill',
+const defaults: MagpieConfig = {
+  name: 'Magpie',
+  shortName: 'Magpie',
   tagline: 'Embeddable AI chatbot framework',
   defaultSystemPrompt: 'You are a helpful AI assistant.',
   welcomeMessage: '',
   starterPrompts: [],
-  checkForUpdatesUrl: 'https://github.com/cordfuse/quill/releases',
+  checkForUpdatesUrl: 'https://github.com/cordfuse/magpie/releases',
   defaultTheme: 'dracula',
   hideBuiltInThemes: false,
   themes: [],
@@ -93,22 +93,22 @@ const BUILT_IN_THEME_IDS = [
 const BUILT_IN_BG_FALLBACK = '#282a36'  // Dracula bg, matches :root in globals.css
 
 function locateConfigFile(): string | null {
-  const explicit = process.env.QUILL_CONFIG_PATH
+  const explicit = process.env.MAGPIE_CONFIG_PATH
   if (explicit) {
     try { if (fs.statSync(explicit).isFile()) return explicit } catch { /* fall through */ }
     return null
   }
   const dir = getConfigDir()
   const candidates = [
-    path.join(dir, 'quill.config.json'),
-    // Standalone server chdirs to .next/standalone/ — when QUILL_CONFIG_DIR
+    path.join(dir, 'magpie.config.json'),
+    // Standalone server chdirs to .next/standalone/ — when MAGPIE_CONFIG_DIR
     // resolves to a relative ./config that doesn't exist there, walk up.
-    path.join(process.cwd(), '..', 'config', 'quill.config.json'),
-    path.join(process.cwd(), '..', '..', 'config', 'quill.config.json'),
+    path.join(process.cwd(), '..', 'config', 'magpie.config.json'),
+    path.join(process.cwd(), '..', '..', 'config', 'magpie.config.json'),
     // Legacy ad-hoc paths (file directly in CWD or a parent).
-    path.join(process.cwd(), 'quill.config.json'),
-    path.join(process.cwd(), '..', 'quill.config.json'),
-    path.join(process.cwd(), '..', '..', 'quill.config.json'),
+    path.join(process.cwd(), 'magpie.config.json'),
+    path.join(process.cwd(), '..', 'magpie.config.json'),
+    path.join(process.cwd(), '..', '..', 'magpie.config.json'),
   ]
   for (const p of candidates) {
     try {
@@ -128,7 +128,7 @@ export interface KioskFlags {
 }
 
 interface LoadedConfig {
-  config: QuillConfig
+  config: MagpieConfig
   themeCss: string
   allowedThemeIds: string[]
   defaultTheme: string
@@ -139,8 +139,8 @@ interface LoadedConfig {
 // Kiosk visibility flags. All default ON (full UI). Setting any to '0' or
 // 'false' hides the corresponding control. A hidden control means the feature
 // runs server-side with whatever's configured (web search uses TAVILY if set;
-// MCP uses every server in quill-mcp.json; model picker uses QUILL_PROVIDER +
-// QUILL_MODEL). To disable a feature entirely, don't configure it.
+// MCP uses every server in magpie-mcp.json; model picker uses MAGPIE_PROVIDER +
+// MAGPIE_MODEL). To disable a feature entirely, don't configure it.
 function envBool(name: string, defaultValue: boolean): boolean {
   const v = process.env[name]
   if (v === undefined || v === '') return defaultValue
@@ -151,19 +151,19 @@ function envBool(name: string, defaultValue: boolean): boolean {
 
 export function loadKioskFlags(): KioskFlags {
   return {
-    showSettings:    envBool('QUILL_SHOW_SETTINGS',     true),
-    persistChat:     envBool('QUILL_PERSIST_CHAT',      true),
-    showWebSearch:   envBool('QUILL_SHOW_WEB_SEARCH',   true),
-    showMcp:         envBool('QUILL_SHOW_MCP',          true),
-    showModelPicker: envBool('QUILL_SHOW_MODEL_PICKER', true),
-    showAttachments: envBool('QUILL_SHOW_ATTACHMENTS',  true),
+    showSettings:    envBool('MAGPIE_SHOW_SETTINGS',     true),
+    persistChat:     envBool('MAGPIE_PERSIST_CHAT',      true),
+    showWebSearch:   envBool('MAGPIE_SHOW_WEB_SEARCH',   true),
+    showMcp:         envBool('MAGPIE_SHOW_MCP',          true),
+    showModelPicker: envBool('MAGPIE_SHOW_MODEL_PICKER', true),
+    showAttachments: envBool('MAGPIE_SHOW_ATTACHMENTS',  true),
   }
 }
 
 // Reads the file fresh each call. JSON is tiny (~1KB) and Node caches the
 // directory lookup; the read itself is microseconds. No memoization here is
 // intentional — we want drop-file-and-refresh behavior.
-export function loadQuillConfig(): LoadedConfig {
+export function loadMagpieConfig(): LoadedConfig {
   const file = locateConfigFile()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let raw: any = {}
@@ -171,7 +171,7 @@ export function loadQuillConfig(): LoadedConfig {
     try { raw = JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { /* fall through to defaults */ }
   }
 
-  const config: QuillConfig = {
+  const config: MagpieConfig = {
     name: typeof raw.name === 'string' ? raw.name : defaults.name,
     shortName: typeof raw.shortName === 'string' ? raw.shortName : defaults.shortName,
     tagline: typeof raw.tagline === 'string' ? raw.tagline : defaults.tagline,

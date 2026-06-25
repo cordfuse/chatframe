@@ -1,5 +1,5 @@
 import Home from '../../_Home'
-import { loadQuillConfig } from '@/lib/config'
+import { loadMagpieConfig } from '@/lib/config'
 
 // Dynamic route /c/<convId>. Passes the URL's conv id as initialConvId
 // so a hard refresh (or shared link) on a conv URL restores that
@@ -8,7 +8,7 @@ import { loadQuillConfig } from '@/lib/config'
 // sidebar state survive between conv switches.
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { config, flags } = loadQuillConfig()
+  const { config, flags } = loadMagpieConfig()
   return (
     <Home
       initialConvId={id}

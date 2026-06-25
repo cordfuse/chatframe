@@ -1,4 +1,4 @@
-# Quill — production single-host compose, Caddy-fronted with auto-HTTPS.
+# Magpie — production single-host compose, Caddy-fronted with auto-HTTPS.
 #
 # Caddy terminates TLS at the edge (uses Let's Encrypt for public domains
 # automatically) and reverse-proxies to the app on a private compose network.
@@ -15,32 +15,32 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: cordfuse/quill:prod
-    container_name: quill
+    image: cordfuse/magpie:prod
+    container_name: magpie
     restart: unless-stopped
 
     env_file:
       - .env
 
     environment:
-      QUILL_CONFIG_DIR: /app/config
+      MAGPIE_CONFIG_DIR: /app/config
 
-      QUILL_PROVIDER: ${QUILL_PROVIDER:-anthropic}
-      QUILL_MODEL: ${QUILL_MODEL:-claude-sonnet-4-6}
-      QUILL_SYSTEM_PROMPT: ${QUILL_SYSTEM_PROMPT:-You are a helpful AI assistant.}
-      QUILL_TEMPERATURE: ${QUILL_TEMPERATURE:-1.0}
+      MAGPIE_PROVIDER: ${MAGPIE_PROVIDER:-anthropic}
+      MAGPIE_MODEL: ${MAGPIE_MODEL:-claude-sonnet-4-6}
+      MAGPIE_SYSTEM_PROMPT: ${MAGPIE_SYSTEM_PROMPT:-You are a helpful AI assistant.}
+      MAGPIE_TEMPERATURE: ${MAGPIE_TEMPERATURE:-1.0}
 
-      QUILL_SHOW_SETTINGS:     ${QUILL_SHOW_SETTINGS:-1}
-      QUILL_PERSIST_CHAT:      ${QUILL_PERSIST_CHAT:-1}
-      QUILL_SHOW_WEB_SEARCH:   ${QUILL_SHOW_WEB_SEARCH:-1}
-      QUILL_SHOW_MCP:          ${QUILL_SHOW_MCP:-1}
-      QUILL_SHOW_MODEL_PICKER: ${QUILL_SHOW_MODEL_PICKER:-1}
-      QUILL_SHOW_ATTACHMENTS:  ${QUILL_SHOW_ATTACHMENTS:-1}
+      MAGPIE_SHOW_SETTINGS:     ${MAGPIE_SHOW_SETTINGS:-1}
+      MAGPIE_PERSIST_CHAT:      ${MAGPIE_PERSIST_CHAT:-1}
+      MAGPIE_SHOW_WEB_SEARCH:   ${MAGPIE_SHOW_WEB_SEARCH:-1}
+      MAGPIE_SHOW_MCP:          ${MAGPIE_SHOW_MCP:-1}
+      MAGPIE_SHOW_MODEL_PICKER: ${MAGPIE_SHOW_MODEL_PICKER:-1}
+      MAGPIE_SHOW_ATTACHMENTS:  ${MAGPIE_SHOW_ATTACHMENTS:-1}
 
     volumes:
       # Persistent config volume — same convention as the dev compose.
-      # Point this at wherever the operator keeps Quill's config on the host
-      # (e.g. /srv/quill-config:/app/config).
+      # Point this at wherever the operator keeps Magpie's config on the host
+      # (e.g. /srv/magpie-config:/app/config).
       - ../nodejs/config:/app/config
 
     networks:
@@ -48,7 +48,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
-    container_name: quill-caddy
+    container_name: magpie-caddy
     restart: unless-stopped
     ports:
       - "80:80"

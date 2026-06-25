@@ -565,8 +565,8 @@ html, body {
    at top (same color as the header itself, no visible seam) → 0% opaque
    at bottom (chat-area bg fully visible). Theme-agnostic: var(--surface)
    does the work, no per-theme overrides needed. */
-.quill-header { position: relative; }
-.quill-header::after {
+.magpie-header { position: relative; }
+.magpie-header::after {
   content: '';
   position: absolute;
   left: 0;
@@ -582,8 +582,8 @@ html, body {
    goes from transparent (top) to var(--bg) (bottom), so chat content
    scrolling up to the composer dissolves into the page bg instead of
    hitting a hard edge. */
-.quill-composer { position: relative; }
-.quill-composer::before {
+.magpie-composer { position: relative; }
+.magpie-composer::before {
   content: '';
   position: absolute;
   left: 0;

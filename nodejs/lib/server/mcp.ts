@@ -1,6 +1,6 @@
 // MCP (Model Context Protocol) client manager.
 //
-// Reads servers from quill-mcp.json (override path via MCP_CONFIG_PATH), opens
+// Reads servers from magpie-mcp.json (override path via MCP_CONFIG_PATH), opens
 // a long-lived client per server at boot, and exposes:
 //   - listServers()         — what the UI's picker shows
 //   - getToolsForServers()  — merged tool list in OpenAI function format
@@ -48,17 +48,17 @@ let initPromise: Promise<void> | null = null
 function loadConfig(): McpConfig | null {
   const explicit = process.env.MCP_CONFIG_PATH
   const dir = getConfigDir()
-  // Lookup order mirrors quill.config.json: QUILL_CONFIG_DIR (the canonical
+  // Lookup order mirrors magpie.config.json: MAGPIE_CONFIG_DIR (the canonical
   // mount), standalone-server ancestors, then legacy CWD-relative paths.
   const candidates = explicit
     ? [explicit]
     : [
-        path.join(dir, 'quill-mcp.json'),
-        path.join(process.cwd(), '..', 'config', 'quill-mcp.json'),
-        path.join(process.cwd(), '..', '..', 'config', 'quill-mcp.json'),
-        path.join(process.cwd(), 'quill-mcp.json'),
-        path.join(process.cwd(), '..', '..', 'quill-mcp.json'),
-        path.join(process.cwd(), '..', '..', '..', 'quill-mcp.json'),
+        path.join(dir, 'magpie-mcp.json'),
+        path.join(process.cwd(), '..', 'config', 'magpie-mcp.json'),
+        path.join(process.cwd(), '..', '..', 'config', 'magpie-mcp.json'),
+        path.join(process.cwd(), 'magpie-mcp.json'),
+        path.join(process.cwd(), '..', '..', 'magpie-mcp.json'),
+        path.join(process.cwd(), '..', '..', '..', 'magpie-mcp.json'),
       ]
   for (const p of candidates) {
     try {
@@ -76,7 +76,7 @@ function loadConfig(): McpConfig | null {
 async function connectServer(id: string, cfg: McpServerConfig): Promise<McpServerState> {
   const label = cfg.label ?? id
   try {
-    const client = new Client({ name: 'quill', version: '0.1.0' }, { capabilities: {} })
+    const client = new Client({ name: 'magpie', version: '0.1.0' }, { capabilities: {} })
     if (cfg.type === 'http') {
       const transport = new StreamableHTTPClientTransport(new URL(cfg.url))
       await client.connect(transport)
@@ -114,7 +114,7 @@ export async function initMcp(): Promise<void> {
   initPromise = (async () => {
     const cfg = loadConfig()
     if (!cfg) {
-      console.log('[mcp] no quill-mcp.json found, MCP disabled')
+      console.log('[mcp] no magpie-mcp.json found, MCP disabled')
       return
     }
     const entries = Object.entries(cfg.servers)

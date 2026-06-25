@@ -5,9 +5,9 @@
 #   - On `main` push    → tags edge (head-of-trunk)
 #   - workflow_dispatch → manual run, same as main
 #
-# The `if: github.repository == 'cordfuse/quill'` guard prevents forks from
+# The `if: github.repository == 'cordfuse/magpie'` guard prevents forks from
 # running this workflow on their own dime — they'd push to their own
-# ghcr.io/<fork>/quill anyway, which is their call to opt into.
+# ghcr.io/<fork>/magpie anyway, which is their call to opt into.
 
 name: Docker — publish
 
@@ -20,11 +20,11 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: ${{ github.repository }}   # → cordfuse/quill
+  IMAGE_NAME: ${{ github.repository }}   # → cordfuse/magpie
 
 jobs:
   ghcr:
-    if: github.repository == 'cordfuse/quill'
+    if: github.repository == 'cordfuse/magpie'
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -1,14 +1,14 @@
 import type { MetadataRoute } from 'next'
-import { loadQuillConfig } from '@/lib/config'
+import { loadMagpieConfig } from '@/lib/config'
 
-// PWA manifest. Read from quill.config.json on each request so dropping a
+// PWA manifest. Read from magpie.config.json on each request so dropping a
 // new config file picks up immediately (browser/OS will still cache the
 // installed PWA's shortcut icon — that's outside our control).
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default function manifest(): MetadataRoute.Manifest {
-  const { config, themeColor } = loadQuillConfig()
+  const { config, themeColor } = loadMagpieConfig()
   return {
     id: `/?app=${config.shortName.toLowerCase()}`,
     name: config.name,

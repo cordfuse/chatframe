@@ -1,9 +1,9 @@
-# Quill — single-host compose for deployments where the host ALREADY runs a
+# Magpie — single-host compose for deployments where the host ALREADY runs a
 # reverse proxy (Caddy / nginx / Traefik) attached to a shared docker network.
 #
 # Pattern matches the cachy infra setup: a host-level Caddy container lives
 # on `proxy_net` and routes <service>.linux.internal → <container>:<port>.
-# Quill joins that same network and exposes nothing on the host — Caddy
+# Magpie joins that same network and exposes nothing on the host — Caddy
 # proxies by container name.
 #
 # Pre-flight:
@@ -15,35 +15,41 @@
 #   4. docker compose -f docker-compose.internal-caddy.yml up -d --build
 
 services:
-  quill:
+  magpie:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: cordfuse/quill:dev
-    container_name: quill
+    image: cordfuse/magpie:dev
+    container_name: magpie
     restart: unless-stopped
 
     env_file:
       - .env
 
     environment:
-      QUILL_CONFIG_DIR: /app/config
+      MAGPIE_CONFIG_DIR: /app/config
 
-      QUILL_PROVIDER: ${QUILL_PROVIDER:-anthropic}
-      QUILL_MODEL: ${QUILL_MODEL:-claude-sonnet-4-6}
-      QUILL_SYSTEM_PROMPT: ${QUILL_SYSTEM_PROMPT:-You are a helpful AI assistant.}
-      QUILL_TEMPERATURE: ${QUILL_TEMPERATURE:-1.0}
+      MAGPIE_PROVIDER: ${MAGPIE_PROVIDER:-anthropic}
+      MAGPIE_MODEL: ${MAGPIE_MODEL:-claude-sonnet-4-6}
+      MAGPIE_SYSTEM_PROMPT: ${MAGPIE_SYSTEM_PROMPT:-You are a helpful AI assistant.}
+      MAGPIE_TEMPERATURE: ${MAGPIE_TEMPERATURE:-1.0}
 
-      QUILL_SHOW_SETTINGS:     ${QUILL_SHOW_SETTINGS:-1}
-      QUILL_PERSIST_CHAT:      ${QUILL_PERSIST_CHAT:-1}
-      QUILL_SHOW_WEB_SEARCH:   ${QUILL_SHOW_WEB_SEARCH:-1}
-      QUILL_SHOW_MCP:          ${QUILL_SHOW_MCP:-1}
-      QUILL_SHOW_MODEL_PICKER: ${QUILL_SHOW_MODEL_PICKER:-1}
-      QUILL_SHOW_ATTACHMENTS:  ${QUILL_SHOW_ATTACHMENTS:-1}
+      MAGPIE_SHOW_SETTINGS:     ${MAGPIE_SHOW_SETTINGS:-1}
+      MAGPIE_PERSIST_CHAT:      ${MAGPIE_PERSIST_CHAT:-1}
+      MAGPIE_SHOW_WEB_SEARCH:   ${MAGPIE_SHOW_WEB_SEARCH:-1}
+      MAGPIE_SHOW_MCP:          ${MAGPIE_SHOW_MCP:-1}
+      MAGPIE_SHOW_MODEL_PICKER: ${MAGPIE_SHOW_MODEL_PICKER:-1}
+      MAGPIE_SHOW_ATTACHMENTS:  ${MAGPIE_SHOW_ATTACHMENTS:-1}
 
     volumes:
       # Same persistent config volume convention as the other compose files.
       - ../nodejs/config:/app/config
+
+    # Local-only host port binding so tailscale serve (localhost:3008) can
+    # reach the container while Caddy still fronts it via proxy_net. Safe
+    # to remove for pure proxy-only setups.
+    ports:
+      - "3008:3000"
 
     networks:
       - proxy_net

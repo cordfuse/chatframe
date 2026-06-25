@@ -71,10 +71,10 @@ const BUILT_IN_THEME_GROUPS: { label: string; ids: Theme[] }[] = [
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0'
 
-// Branding pulled from window.__QUILL (injected by app/layout.tsx from
-// the runtime quill.config.json read). All fields fall back to "Quill"
+// Branding pulled from window.__MAGPIE (injected by app/layout.tsx from
+// the runtime magpie.config.json read). All fields fall back to "Magpie"
 // defaults when window or the global aren't available (SSR, tests).
-interface QuillBranding {
+interface MagpieBranding {
   name: string
   shortName: string
   welcomeMessage: string
@@ -82,15 +82,15 @@ interface QuillBranding {
   customThemes: { id: string; name: string; category: 'dark' | 'light'; swatches?: [string, string, string]; colors?: Record<string, string> }[]
   hideBuiltIns: boolean
 }
-function getQuillBranding(): QuillBranding {
+function getMagpieBranding(): MagpieBranding {
   if (typeof window === 'undefined') {
-    return { name: 'Quill', shortName: 'Quill', welcomeMessage: '', checkForUpdatesUrl: '#', customThemes: [], hideBuiltIns: false }
+    return { name: 'Magpie', shortName: 'Magpie', welcomeMessage: '', checkForUpdatesUrl: '#', customThemes: [], hideBuiltIns: false }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const w = (window as any).__QUILL ?? {}
+  const w = (window as any).__MAGPIE ?? {}
   return {
-    name: w.name ?? 'Quill',
-    shortName: w.shortName ?? 'Quill',
+    name: w.name ?? 'Magpie',
+    shortName: w.shortName ?? 'Magpie',
     welcomeMessage: typeof w.welcomeMessage === 'string' ? w.welcomeMessage : '',
     checkForUpdatesUrl: w.checkForUpdatesUrl ?? '#',
     customThemes: Array.isArray(w.customThemes) ? w.customThemes : [],
@@ -98,9 +98,9 @@ function getQuillBranding(): QuillBranding {
   }
 }
 
-// Kiosk visibility flags from window.__QUILL.flags. All default true (full
+// Kiosk visibility flags from window.__MAGPIE.flags. All default true (full
 // UI) when the global isn't present, so non-kiosk SSR/tests behave normally.
-interface QuillFlags {
+interface MagpieFlags {
   showSettings: boolean
   persistChat: boolean
   showWebSearch: boolean
@@ -108,7 +108,7 @@ interface QuillFlags {
   showModelPicker: boolean
   showAttachments: boolean
 }
-function getQuillFlags(): QuillFlags {
+function getMagpieFlags(): MagpieFlags {
   const fallback = {
     showSettings: true, persistChat: true,
     showWebSearch: true, showMcp: true, showModelPicker: true,
@@ -116,7 +116,7 @@ function getQuillFlags(): QuillFlags {
   }
   if (typeof window === 'undefined') return fallback
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const f = (window as any).__QUILL?.flags
+  const f = (window as any).__MAGPIE?.flags
   if (!f || typeof f !== 'object') return fallback
   return {
     showSettings:    f.showSettings    !== false,
@@ -130,7 +130,7 @@ function getQuillFlags(): QuillFlags {
 
 // ─── icons ───────────────────────────────────────────────────────────────────
 
-const QuillIcon = () => (
+const MagpieIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
     <path d="M20.5 3.5c-7 1-12 6-13.5 13.5L4 20l3-3.5c7.5-1.5 12.5-6.5 13.5-13z" />
     <path d="M4 20l8-8" />
@@ -321,10 +321,10 @@ function SettingsPanel({
     setTimeout(onClose, 240)
   }
 
-  // Merge built-in themes with any custom themes from quill.config.json
-  // (read at runtime via window.__QUILL). Custom themes are appended to the
+  // Merge built-in themes with any custom themes from magpie.config.json
+  // (read at runtime via window.__MAGPIE). Custom themes are appended to the
   // built-in groups by category; if hideBuiltIns is true, only customs show.
-  const branding = getQuillBranding()
+  const branding = getMagpieBranding()
   const customThemeMeta: ThemeMeta[] = branding.customThemes.map(t => ({
     id: t.id,
     label: t.name,
@@ -493,7 +493,7 @@ function SettingsPanel({
                 const trimmed = promptDraft.trim()
                 onSystemPrompt(trimmed.length > 0 ? trimmed : null)
               }}
-              placeholder='Server default — set QUILL_SYSTEM_PROMPT, or override per-user here.'
+              placeholder='Server default — set MAGPIE_SYSTEM_PROMPT, or override per-user here.'
               rows={3}
               className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg placeholder:text-fg-4 outline-none focus:ring-1 focus:ring-primary/40 resize-y min-h-[4.5rem]"
             />
@@ -672,7 +672,7 @@ function Sidebar({
         {/* brand + close (mobile) */}
         <div className="flex items-center justify-between px-3 py-3 shrink-0 min-w-[260px]">
           <div className="flex items-center gap-2.5">
-            <QuillIcon />
+            <MagpieIcon />
             <span className="text-sm font-medium text-fg whitespace-nowrap">{appName}</span>
           </div>
           <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label="Close sidebar">
@@ -680,7 +680,7 @@ function Sidebar({
           </button>
         </div>
 
-        {/* tabs-row equivalent — mighty puts Delete-all-chats here, right-aligned, under a thin divider. Quill has no tabs, so the row is just label + clear-all */}
+        {/* tabs-row equivalent — mighty puts Delete-all-chats here, right-aligned, under a thin divider. Magpie has no tabs, so the row is just label + clear-all */}
         <div className="flex items-center border-b border-white/10 ml-3 mr-[17px] h-9">
           <span className="text-xs font-medium text-fg-3">Chats</span>
           <div className="flex-1" />
@@ -923,7 +923,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
 
 export default function Home({
   initialConvId,
-  appName = 'Quill',
+  appName = 'Magpie',
   welcomeMessage = '',
   starterPrompts = [],
   flags: serverFlags,
@@ -932,13 +932,13 @@ export default function Home({
   appName?: string
   welcomeMessage?: string
   starterPrompts?: string[]
-  flags?: QuillFlags
+  flags?: MagpieFlags
 } = {}) {
   // Kiosk visibility flags. Source of truth is the server prop (SSR-correct,
-  // no hydration mismatch). Fall back to window.__QUILL when the prop is
+  // no hydration mismatch). Fall back to window.__MAGPIE when the prop is
   // missing (older callers/tests). Both ultimately resolve to "all true"
   // (full UI) when nothing's configured.
-  const flags: QuillFlags = serverFlags ?? getQuillFlags()
+  const flags: MagpieFlags = serverFlags ?? getMagpieFlags()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -1489,7 +1489,7 @@ export default function Home({
 
       {/* main column */}
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
-        <header className="quill-header px-3 py-3 flex items-center gap-2 shrink-0 bg-surface z-10">
+        <header className="magpie-header px-3 py-3 flex items-center gap-2 shrink-0 bg-surface z-10">
           {flags.persistChat && (
             <button
               onClick={() => setSidebarOpen(true)}
@@ -1501,7 +1501,7 @@ export default function Home({
             </button>
           )}
           <span className="flex items-center gap-1.5">
-            <QuillIcon />
+            <MagpieIcon />
             <h1 className="text-sm font-medium text-fg">{appName}</h1>
           </span>
           <div className="flex-1" />
@@ -1613,7 +1613,7 @@ export default function Home({
         )}
 
         {/* composer */}
-        <div className="quill-composer px-4 pb-4 pt-2 shrink-0">
+        <div className="magpie-composer px-4 pb-4 pt-2 shrink-0">
           {/* hidden file inputs */}
           <input ref={cameraInputRef}   type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickFile('image')} />
           <input ref={photosInputRef}   type="file" accept="image/*"                         className="hidden" onChange={onPickFile('image')} />
@@ -1788,7 +1788,7 @@ export default function Home({
                   </div>
                 )}
               {/* Model pill — opens upward from the composer. Hidden in
-                  kiosk mode → server uses QUILL_PROVIDER + QUILL_MODEL env
+                  kiosk mode → server uses MAGPIE_PROVIDER + MAGPIE_MODEL env
                   defaults regardless of any stored client preference. */}
               <div>
                 {providers.length > 0 && flags.showModelPicker && (() => {
@@ -1923,7 +1923,7 @@ export default function Home({
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `quill-export-${new Date().toISOString().slice(0, 10)}.json`
+            a.download = `magpie-export-${new Date().toISOString().slice(0, 10)}.json`
             a.click()
             URL.revokeObjectURL(url)
           }}

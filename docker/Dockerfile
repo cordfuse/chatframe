@@ -1,4 +1,4 @@
-# Quill — Next.js standalone build, multi-stage.
+# Magpie — Next.js standalone build, multi-stage.
 #
 # Build context expectation: the repo root (one level above docker/), NOT
 # inside docker/. The compose files set `build.context: ..` for this reason.
@@ -35,9 +35,9 @@ RUN npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-# Tell loadQuillConfig() + the MCP loader where the operator-mounted config
+# Tell loadMagpieConfig() + the MCP loader where the operator-mounted config
 # volume lives. Compose mounts the host config dir at this path.
-ENV QUILL_CONFIG_DIR=/app/config
+ENV MAGPIE_CONFIG_DIR=/app/config
 
 # Copy the prepared standalone bundle. server.js becomes /app/server.js;
 # the bundled config + public + static are nested inside it already.

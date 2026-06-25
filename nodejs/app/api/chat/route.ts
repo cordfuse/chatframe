@@ -3,21 +3,21 @@ import { getDeviceIdFromRequest } from '@/lib/server/jwt'
 import {
   runChat, runChatStream, findProvider, isModelValidForProvider,
 } from '@/lib/server/ai-tools'
-import { loadQuillConfig, loadKioskFlags } from '@/lib/config'
+import { loadMagpieConfig, loadKioskFlags } from '@/lib/config'
 import { listServers } from '@/lib/server/mcp'
 import { createStream, attachReplay } from '@/lib/server/stream-buffer'
 
 export const maxDuration = 300
 
-const ENV_PROVIDER = process.env.QUILL_PROVIDER ?? 'anthropic'
-const ENV_MODEL = process.env.QUILL_MODEL ?? 'claude-sonnet-4-6'
+const ENV_PROVIDER = process.env.MAGPIE_PROVIDER ?? 'anthropic'
+const ENV_MODEL = process.env.MAGPIE_MODEL ?? 'claude-sonnet-4-6'
 
-// System prompt resolution chain: client per-request → QUILL_SYSTEM_PROMPT
-// env → quill.config.json defaultSystemPrompt → hardcoded fallback.
+// System prompt resolution chain: client per-request → MAGPIE_SYSTEM_PROMPT
+// env → magpie.config.json defaultSystemPrompt → hardcoded fallback.
 // Config is read fresh per request so drop-in JSON changes apply immediately.
 function getDefaultSystemPrompt(): string {
-  if (process.env.QUILL_SYSTEM_PROMPT) return process.env.QUILL_SYSTEM_PROMPT
-  return loadQuillConfig().config.defaultSystemPrompt
+  if (process.env.MAGPIE_SYSTEM_PROMPT) return process.env.MAGPIE_SYSTEM_PROMPT
+  return loadMagpieConfig().config.defaultSystemPrompt
 }
 
 // Generation defaults — env var (operator deploy default) → hardcoded fallback.
@@ -32,7 +32,7 @@ function envNumber(name: string): number | undefined {
 }
 function resolveTemperature(clientValue: unknown): number {
   if (typeof clientValue === 'number' && Number.isFinite(clientValue)) return clientValue
-  return envNumber('QUILL_TEMPERATURE') ?? HARDCODED_TEMPERATURE
+  return envNumber('MAGPIE_TEMPERATURE') ?? HARDCODED_TEMPERATURE
 }
 function resolveSystemPrompt(clientValue: unknown): string {
   if (typeof clientValue === 'string' && clientValue.trim().length > 0) return clientValue
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   // Kiosk visibility flags. When a UI control is hidden, the client can't
   // send that field — so the server falls back to: env-configured value
   // (provider/model), or feature-always-on with whatever's configured
-  // (web search if TAVILY set; all MCP servers from quill-mcp.json).
+  // (web search if TAVILY set; all MCP servers from magpie-mcp.json).
   const flags = loadKioskFlags()
 
   // Provider: when picker is hidden, ignore client choice and use env default.
@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
         Connection:           'keep-alive',
         // The stream id lets the client reconnect to /api/chat/replay/[id]
         // with a Last-Event-ID header if the connection drops mid-flight.
-        'X-Quill-Stream-Id':  streamId,
+        'X-Magpie-Stream-Id':  streamId,
       },
     })
   }
