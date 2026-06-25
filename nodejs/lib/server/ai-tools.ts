@@ -1,13 +1,13 @@
 // Multi-provider chat engine on the Vercel AI SDK v6.
 //
-// Spike status: commit 1 of 3.
-//   1. (this file) Replace token.js with AI SDK; Tavily-only web search,
-//      no caching markers yet — feature parity with the token.js version.
-//   2. Wire Anthropic cacheControl on the system prompt + stable message
-//      prefixes for prompt-caching cost wins on multi-turn chats.
-//   3. Add MAGPIE_SEARCH_BACKEND=native|tavily|auto flag so deployments
-//      can pick provider-native web search (Anthropic web_search_20250305,
-//      OpenAI Responses, Gemini grounding) vs uniform Tavily.
+// Web search backend is controlled by MAGPIE_SEARCH_BACKEND:
+//   - native: use the provider's first-party search where available
+//     (Anthropic web_search, Google grounding, Perplexity built-in).
+//     Providers without native search get no search.
+//   - tavily: always Tavily (requires TAVILY_API_KEY). Uniform across
+//     providers but adds a third-party hop and per-search cost.
+//   - auto (default): prefer native when the active provider has it,
+//     fall back to Tavily otherwise.
 
 import { streamText, generateText, tool, jsonSchema, stepCountIs } from 'ai'
 import type { ModelMessage, LanguageModel } from 'ai'
@@ -289,7 +289,9 @@ function toModelMessages(
 // ─── Tool definitions ───────────────────────────────────────────────────────
 
 // Sources captured during a run so the UI can render them as citations.
-// Populated only by the Tavily web_search tool (MCP outputs are free-form).
+// Populated by the Tavily web_search tool's execute() callback, and by
+// provider-native search results that arrive as `source` chunks in the
+// stream. MCP tool outputs are free-form and don't contribute here.
 interface SourcesCollector { sources: { title: string; url: string }[] }
 
 function buildTavilySearchTool(collector: SourcesCollector) {
@@ -344,18 +346,102 @@ async function buildMcpTools(serverIds: string[]) {
   return out
 }
 
-// Build the per-request tool map for AI SDK. Tavily web_search (when
-// enabled) plus any MCP server tools the user selected.
-async function buildTools(
-  webSearch: boolean,
-  mcpServerIds: string[] | undefined,
+// ─── Search backend resolution ──────────────────────────────────────────────
+
+export type SearchBackend = 'native' | 'tavily' | 'auto'
+
+function readBackendFlag(): SearchBackend {
+  const raw = (process.env.MAGPIE_SEARCH_BACKEND ?? 'auto').toLowerCase()
+  if (raw === 'native' || raw === 'tavily') return raw
+  return 'auto'
+}
+
+// Provider-native search: returns the tool entries to register on the
+// request, or null if the provider has no native search. Some providers
+// (Perplexity) search on every request without needing a tool slot —
+// they return an empty tools object so the source-chunk collection path
+// still gets activated.
+interface NativeSearch {
+  tools: Record<string, unknown>
+}
+
+function getNativeSearch(providerId: string): NativeSearch | null {
+  switch (providerId) {
+    case 'anthropic':
+      // Anthropic's server-side web search. We pick the 2025-03-05 version
+      // (rather than 2026-02-09) because the newer one defaults to
+      // "programmatic" tool calling, which Haiku 4.5 doesn't support and
+      // any model without the programmatic capability rejects with HTTP 400.
+      // 2025-03-05 is the long-standing variant that works across all
+      // current Claude models (Opus/Sonnet/Haiku). maxUses caps how many
+      // separate search calls the model can issue per assistant turn;
+      // 5 mirrors our MAX_TOOL_ROUNDS for parity.
+      return { tools: { web_search: anthropic.tools.webSearch_20250305({ maxUses: 5 }) } }
+    case 'gemini':
+      // Google grounding via the Search tool. The provider routes this
+      // through Gemini's built-in search grounding pipeline.
+      return { tools: { google_search: google.tools.googleSearch({}) } }
+    case 'perplexity':
+      // Sonar models search the web on every request — no tool slot needed.
+      // The source-chunk path still picks up citations from the response.
+      return { tools: {} }
+    default:
+      return null
+  }
+}
+
+interface ResolvedSearch {
+  source: 'native' | 'tavily' | 'none'
+  tools: Record<string, unknown>
+  // True when the active backend surfaces citations as AI SDK `source`
+  // stream chunks (all native paths). Tavily routes them through the
+  // tool's execute() callback instead and sets this false.
+  consumeSourceChunks: boolean
+}
+
+function resolveSearch(
+  webSearchEnabled: boolean,
+  providerId: string,
   sources: SourcesCollector,
+): ResolvedSearch {
+  if (!webSearchEnabled) {
+    return { source: 'none', tools: {}, consumeSourceChunks: false }
+  }
+  const backend = readBackendFlag()
+  const native = getNativeSearch(providerId)
+  const tavilyAvailable = !!process.env.TAVILY_API_KEY
+
+  const tavilyChoice = (): ResolvedSearch => ({
+    source: 'tavily',
+    tools: { web_search: buildTavilySearchTool(sources) },
+    consumeSourceChunks: false,
+  })
+  const noneChoice = (): ResolvedSearch => ({
+    source: 'none', tools: {}, consumeSourceChunks: false,
+  })
+
+  if (backend === 'native') {
+    return native
+      ? { source: 'native', tools: native.tools, consumeSourceChunks: true }
+      : noneChoice()
+  }
+  if (backend === 'tavily') {
+    return tavilyAvailable ? tavilyChoice() : noneChoice()
+  }
+  // auto: prefer native (no extra API key, lower latency, no third-party hop).
+  if (native) return { source: 'native', tools: native.tools, consumeSourceChunks: true }
+  if (tavilyAvailable) return tavilyChoice()
+  return noneChoice()
+}
+
+// Build the per-request tool map for AI SDK. Resolved search backend's
+// tools plus any MCP server tools the user selected.
+async function buildTools(
+  resolvedSearch: ResolvedSearch,
+  mcpServerIds: string[] | undefined,
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tools: Record<string, any> = {}
-  if (webSearch && process.env.TAVILY_API_KEY) {
-    tools.web_search = buildTavilySearchTool(sources)
-  }
+  const tools: Record<string, any> = { ...resolvedSearch.tools }
   if (mcpServerIds && mcpServerIds.length > 0) {
     Object.assign(tools, await buildMcpTools(mcpServerIds))
   }
@@ -387,8 +473,9 @@ export async function runChat(
   const p = findProvider(providerId)
   if (!p) throw new Error(`Unknown provider '${providerId}'`)
 
-  const sources: { title: string; url: string }[] = []
-  const tools = await buildTools(!!options.webSearch, options.mcpServers, { sources })
+  const sourcesCollector: SourcesCollector = { sources: [] }
+  const resolvedSearch = resolveSearch(!!options.webSearch, providerId, sourcesCollector)
+  const tools = await buildTools(resolvedSearch, options.mcpServers)
 
   const result = await generateText({
     model: p.createModel(model),
@@ -403,9 +490,19 @@ export async function runChat(
     ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
   })
 
+  // Native search paths surface citations through the response's sources
+  // collection rather than the tool execute() callback — drain them here.
+  if (resolvedSearch.consumeSourceChunks && result.sources?.length) {
+    for (const s of result.sources) {
+      if (s.sourceType === 'url') {
+        sourcesCollector.sources.push({ title: s.title ?? s.url, url: s.url })
+      }
+    }
+  }
+
   return {
     message: result.text,
-    sources: sources.length ? sources : undefined,
+    sources: sourcesCollector.sources.length ? sourcesCollector.sources : undefined,
   }
 }
 
@@ -419,11 +516,12 @@ export async function* runChatStream(
   const p = findProvider(providerId)
   if (!p) throw new Error(`Unknown provider '${providerId}'`)
 
-  // Sources collector — passed into the tool factory so the Tavily execute()
-  // can push results as it runs. We yield them to the UI as 'sources' events
-  // after each tool round completes.
+  // Sources collector. Tavily pushes here via its execute() callback; native
+  // search paths push from the `source` stream-chunk handler below. Either
+  // way, freshly-collected sources are yielded to the UI in batches.
   const sourcesCollector: SourcesCollector = { sources: [] }
-  const tools = await buildTools(!!options.webSearch, options.mcpServers, sourcesCollector)
+  const resolvedSearch = resolveSearch(!!options.webSearch, providerId, sourcesCollector)
+  const tools = await buildTools(resolvedSearch, options.mcpServers)
 
   const result = streamText({
     model: p.createModel(model),
@@ -465,6 +563,20 @@ export async function* runChatStream(
           const fresh = sourcesCollector.sources.slice(yieldedSources)
           yieldedSources = sourcesCollector.sources.length
           yield { type: 'sources', sources: fresh }
+        }
+        break
+
+      case 'source':
+        // Provider-native search citations arrive as 'source' chunks in the
+        // stream (Anthropic web_search, Google grounding, Perplexity Sonar).
+        // Tavily uses the execute() collector path instead — guarded by the
+        // resolvedSearch flag to avoid double-counting if a provider ever
+        // surfaces sources alongside our tool's own results.
+        if (resolvedSearch.consumeSourceChunks && chunk.sourceType === 'url') {
+          const src = { title: chunk.title ?? chunk.url, url: chunk.url }
+          sourcesCollector.sources.push(src)
+          yieldedSources = sourcesCollector.sources.length
+          yield { type: 'sources', sources: [src] }
         }
         break
 

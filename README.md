@@ -97,12 +97,11 @@ Set the env var for the provider you want, plus `MAGPIE_PROVIDER` to select it.
 | Mistral | `MISTRAL_API_KEY` | cloud |
 | Cohere | `COHERE_API_KEY` | cloud |
 | Perplexity | `PERPLEXITY_API_KEY` | cloud |
-| AI21 | `AI21_API_KEY` | cloud |
 | AWS Bedrock | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | cloud |
 | Ollama | `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`) | local |
 | llama.cpp | `LLAMACPP_BASE_URL` (default `http://localhost:8080/v1`) | local |
 | LM Studio | `LMSTUDIO_BASE_URL` (default `http://localhost:1234/v1`) | local |
-| Tavily web search | `TAVILY_API_KEY` (optional; enables the globe toggle) | — |
+| Web search (Tavily) | `TAVILY_API_KEY` (optional — see `MAGPIE_SEARCH_BACKEND` below) | — |
 
 In Docker, point local-provider base URLs at `host.docker.internal:<port>` (the compose files set `extra_hosts: ["host.docker.internal:host-gateway"]`).
 
@@ -115,6 +114,7 @@ In Docker, point local-provider base URLs at `host.docker.internal:<port>` (the 
 | `MAGPIE_MODEL` | Provider-specific model id | `claude-sonnet-4-6` |
 | `MAGPIE_SYSTEM_PROMPT` | Server-default system prompt | `"You are a helpful AI assistant."` |
 | `MAGPIE_TEMPERATURE` | Sampling temperature | `1.0` |
+| `MAGPIE_SEARCH_BACKEND` | Web search source: `auto` (native when available, Tavily otherwise), `native` (Anthropic / Google / Perplexity only), or `tavily` (uniform) | `auto` |
 | `MAGPIE_CONFIG_DIR` | Where `magpie.config.json` + `magpie-mcp.json` + `icons/` live | `./config` |
 | `MAGPIE_SHOW_SETTINGS` | Show the settings gear (`1`/`0`) | `1` |
 | `MAGPIE_PERSIST_CHAT` | Persist chat history to localStorage + show sidebar | `1` |
