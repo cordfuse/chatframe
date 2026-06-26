@@ -26,189 +26,80 @@ import { getToolsForServers, executeMcpToolCall, isMcpToolName } from './mcp'
 
 // ─── Model registry ──────────────────────────────────────────────────────────
 //
-// Sensible default model set per provider. Used by:
-//   - the /api/providers endpoint to expose models to the UI
-//   - the /api/chat endpoint to validate the requested model
+// Provider DATA (id, label, category, envKey, defaultModel, models[]) lives
+// in `config/providers.yaml` — operator-editable, no TypeScript required.
+// Provider BEHAVIOR (factory functions that construct AI SDK LanguageModel
+// instances) lives here in code — they capture per-provider runtime
+// wiring like env-var precedence and baseURL detection. The YAML loader
+// (lib/server/providers-config.ts) merges the two at startup.
+//
+// Add a new provider:
+//   1. Append an entry to `config/providers.yaml`
+//   2. Add a matching factory below in `FACTORIES`
+//   3. Restart magpie
+//
+// Add a new model to an existing provider: edit YAML only.
+// Relabel / reorder models: edit YAML only.
 //
 // AI21 was dropped from token.js's coverage in the migration — they don't
 // expose an OpenAI-compatible endpoint and don't have a first-party AI SDK
 // provider package. Re-add via @ai-sdk/openai-compatible if AI21 ever
 // publishes an OpenAI-shaped surface.
 
-export interface ModelInfo {
-  id: string
-  label: string
+export type { ModelInfo, ProviderCategory, ProviderInfo, ModelFactory, PublicProviderInfo } from './ai-tools-types'
+import type { InternalModelFactory, ProviderInfo, PublicProviderInfo } from './ai-tools-types'
+import { loadProvidersConfig } from './providers-config'
+
+// Factory map keyed by provider id. Matches the provider keys in
+// config/providers.yaml. Each factory receives the YAML-resolved
+// ProviderInfo as its second arg — so any per-provider config (envKey,
+// baseURLEnv, defaultBaseURL) reads from YAML at call time instead of
+// being duplicated in a closure. The loader binds the second arg via
+// partial application before exposing the public createModel surface.
+const FACTORIES: Record<string, InternalModelFactory> = {
+  // ── Cloud — most are one-liner pass-throughs to the SDK provider.
+  // The SDK reads its provider-conventional env var (ANTHROPIC_API_KEY
+  // for @ai-sdk/anthropic, OPENAI_API_KEY for @ai-sdk/openai, etc.),
+  // which matches what the YAML declares under `envKey` for these.
+  anthropic:  (m, _p) => anthropic(m),
+  openai:     (m, _p) => openai(m),
+  groq:       (m, _p) => groq(m),
+  mistral:    (m, _p) => mistral(m),
+  cohere:     (m, _p) => cohere(m),
+  perplexity: (m, _p) => perplexity(m),
+  bedrock:    (m, _p) => bedrock(m),
+
+  // Gemini needs custom env-var handling: @ai-sdk/google's default
+  // singleton reads GOOGLE_GENERATIVE_AI_API_KEY, but the Magpie env
+  // convention (and most users' existing setups) uses whatever the YAML
+  // declares as `envKey` — typically GEMINI_API_KEY. Build the provider
+  // explicitly with the YAML-named key so an env change between requests
+  // gets picked up. Fall back to the default singleton if the named key
+  // isn't set.
+  gemini: (m, p) => {
+    const key = p.envKey ? process.env[p.envKey] : undefined
+    if (!key) return googleDefault(m)
+    return createGoogleGenerativeAI({ apiKey: key })(m)
+  },
+
+  // ── Local — all three share the same OpenAI-compatible shape: read
+  // baseURLEnv from the env (falling back to defaultBaseURL), construct
+  // a fresh OpenAI-compatible provider. Doing this per-call (not once
+  // at module load) means env changes between requests are picked up.
+  ollama:   (m, p) => localOpenAICompatible(m, p),
+  llamacpp: (m, p) => localOpenAICompatible(m, p),
+  lmstudio: (m, p) => localOpenAICompatible(m, p),
 }
 
-export type ProviderCategory = 'cloud' | 'local'
-
-// Factory: given a model id, return an AI SDK LanguageModel. Captures any
-// per-provider construction needs (local providers need a baseURL up front).
-type ModelFactory = (modelId: string) => LanguageModel
-
-export interface ProviderInfo {
-  id: string
-  label: string
-  category: ProviderCategory
-  envKey?: string                  // cloud: env var that must be set
-  baseURLEnv?: string              // local: env var that overrides baseURL
-  defaultBaseURL?: string          // local: fallback baseURL
-  defaultModel: string
-  models: ModelInfo[]
-  createModel: ModelFactory
+function localOpenAICompatible(modelId: string, p: ProviderInfo) {
+  const baseURL = (p.baseURLEnv && process.env[p.baseURLEnv]) || p.defaultBaseURL!
+  return createOpenAICompatible({ name: p.id, baseURL, apiKey: 'local' })(modelId)
 }
 
-// Lazy local-provider model factories — created on first use so envKey
-// changes between requests get picked up.
-function localFactory(name: string, envKey: string, fallback: string): ModelFactory {
-  return (modelId: string) => {
-    const baseURL = process.env[envKey] || fallback
-    const compat = createOpenAICompatible({ name, baseURL, apiKey: 'local' })
-    return compat(modelId)
-  }
-}
-
-export const PROVIDERS: ProviderInfo[] = [
-  // ── cloud ──
-  {
-    id: 'anthropic', label: 'Anthropic', category: 'cloud', envKey: 'ANTHROPIC_API_KEY',
-    defaultModel: 'claude-sonnet-4-6',
-    models: [
-      { id: 'claude-opus-4-7',           label: 'Claude Opus 4.7' },
-      { id: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6' },
-      { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
-    ],
-    createModel: (m) => anthropic(m),
-  },
-  {
-    id: 'openai', label: 'OpenAI', category: 'cloud', envKey: 'OPENAI_API_KEY',
-    defaultModel: 'gpt-4o',
-    models: [
-      { id: 'gpt-4o',      label: 'GPT-4o' },
-      { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
-      { id: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-      { id: 'o1-preview',  label: 'o1 preview' },
-      { id: 'o1-mini',     label: 'o1 mini' },
-    ],
-    createModel: (m) => openai(m),
-  },
-  {
-    id: 'gemini', label: 'Google Gemini', category: 'cloud', envKey: 'GEMINI_API_KEY',
-    defaultModel: 'gemini-2.5-flash',
-    models: [
-      { id: 'gemini-2.5-pro',         label: 'Gemini 2.5 Pro' },
-      { id: 'gemini-2.5-flash',       label: 'Gemini 2.5 Flash' },
-      { id: 'gemini-2.5-flash-lite',  label: 'Gemini 2.5 Flash-Lite' },
-    ],
-    // @ai-sdk/google's default singleton reads GOOGLE_GENERATIVE_AI_API_KEY,
-    // but the Magpie env convention (and most users' existing setups) uses
-    // GEMINI_API_KEY. Build the provider explicitly with that key at request
-    // time so an env change between requests gets picked up. Fall back to
-    // the default singleton if only the SDK-native var is set.
-    createModel: (m) => {
-      const key = process.env.GEMINI_API_KEY
-      if (!key) return googleDefault(m)
-      return createGoogleGenerativeAI({ apiKey: key })(m)
-    },
-  },
-  {
-    id: 'groq', label: 'Groq', category: 'cloud', envKey: 'GROQ_API_KEY',
-    defaultModel: 'llama-3.3-70b-versatile',
-    models: [
-      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
-      { id: 'llama-3.1-8b-instant',    label: 'Llama 3.1 8B Instant' },
-      { id: 'mixtral-8x7b-32768',      label: 'Mixtral 8×7B' },
-    ],
-    createModel: (m) => groq(m),
-  },
-  {
-    id: 'mistral', label: 'Mistral', category: 'cloud', envKey: 'MISTRAL_API_KEY',
-    defaultModel: 'mistral-large-latest',
-    models: [
-      { id: 'mistral-large-latest', label: 'Mistral Large' },
-      { id: 'mistral-small-latest', label: 'Mistral Small' },
-      { id: 'codestral-latest',     label: 'Codestral' },
-    ],
-    createModel: (m) => mistral(m),
-  },
-  {
-    id: 'cohere', label: 'Cohere', category: 'cloud', envKey: 'COHERE_API_KEY',
-    defaultModel: 'command-r-plus',
-    models: [
-      { id: 'command-r-plus', label: 'Command R+' },
-      { id: 'command-r',      label: 'Command R' },
-      { id: 'command',        label: 'Command' },
-    ],
-    createModel: (m) => cohere(m),
-  },
-  {
-    id: 'perplexity', label: 'Perplexity', category: 'cloud', envKey: 'PERPLEXITY_API_KEY',
-    defaultModel: 'sonar',
-    models: [
-      { id: 'sonar',     label: 'Sonar' },
-      { id: 'sonar-pro', label: 'Sonar Pro' },
-    ],
-    createModel: (m) => perplexity(m),
-  },
-  {
-    id: 'bedrock', label: 'AWS Bedrock', category: 'cloud', envKey: 'AWS_ACCESS_KEY_ID',
-    defaultModel: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-    models: [
-      { id: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Bedrock Claude 3.5 Sonnet' },
-      { id: 'meta.llama3-1-70b-instruct-v1:0',           label: 'Bedrock Llama 3.1 70B' },
-    ],
-    createModel: (m) => bedrock(m),
-  },
-  // ── local (OpenAI-compatible) ──
-  {
-    id: 'ollama', label: 'Ollama', category: 'local',
-    baseURLEnv: 'OLLAMA_BASE_URL', defaultBaseURL: 'http://localhost:11434/v1',
-    defaultModel: 'llama3.1:8b',
-    models: [
-      { id: 'llama3.1:8b',  label: 'Llama 3.1 8B' },
-      { id: 'llama3.2:3b',  label: 'Llama 3.2 3B' },
-      { id: 'qwen2.5:7b',   label: 'Qwen 2.5 7B' },
-      { id: 'qwen2.5:14b',  label: 'Qwen 2.5 14B' },
-      { id: 'mistral:7b',   label: 'Mistral 7B' },
-      { id: 'gemma2:9b',    label: 'Gemma 2 9B' },
-      { id: 'phi3:14b',     label: 'Phi 3 14B' },
-    ],
-    createModel: localFactory('ollama', 'OLLAMA_BASE_URL', 'http://localhost:11434/v1'),
-  },
-  {
-    id: 'llamacpp', label: 'llama.cpp', category: 'local',
-    baseURLEnv: 'LLAMACPP_BASE_URL', defaultBaseURL: 'http://localhost:8080/v1',
-    defaultModel: 'loaded-model',
-    models: [
-      { id: 'loaded-model', label: 'Currently loaded model' },
-    ],
-    createModel: localFactory('llamacpp', 'LLAMACPP_BASE_URL', 'http://localhost:8080/v1'),
-  },
-  {
-    id: 'lmstudio', label: 'LM Studio', category: 'local',
-    baseURLEnv: 'LMSTUDIO_BASE_URL', defaultBaseURL: 'http://localhost:1234/v1',
-    defaultModel: 'local-model',
-    models: [
-      { id: 'local-model',                 label: 'Currently loaded model' },
-      { id: 'llama-3.2-3b-instruct',       label: 'Llama 3.2 3B Instruct' },
-      { id: 'qwen2.5-7b-instruct',         label: 'Qwen 2.5 7B Instruct' },
-      { id: 'mistral-7b-instruct-v0.3',    label: 'Mistral 7B Instruct v0.3' },
-    ],
-    createModel: localFactory('lmstudio', 'LMSTUDIO_BASE_URL', 'http://localhost:1234/v1'),
-  },
-]
+export const PROVIDERS: ProviderInfo[] = loadProvidersConfig(FACTORIES)
 
 export function findProvider(id: string): ProviderInfo | undefined {
   return PROVIDERS.find(p => p.id === id)
-}
-
-export interface PublicProviderInfo {
-  id: string
-  label: string
-  category: ProviderCategory
-  available: boolean
-  defaultModel: string
-  models: ModelInfo[]
 }
 
 export function getAvailableProviders(): PublicProviderInfo[] {

@@ -190,6 +190,9 @@ const GearIcon = () => (
 const CloseIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 )
+const EllipsisIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+)
 const SearchIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
 )
@@ -629,13 +632,7 @@ function SettingsPanel({
           </div>
         </div>
 
-        <div className="px-5 py-3 flex items-center justify-between text-xs text-fg-4">
-          <button
-            onClick={() => window.location.reload()}
-            className="hover:text-fg-2 transition-colors"
-          >
-            {t('settings.checkForUpdates', 'Check for updates')}
-          </button>
+        <div className="px-5 py-3 flex items-center justify-end text-xs text-fg-4">
           <span>{branding.name} v{APP_VERSION}</span>
         </div>
       </aside>
@@ -1023,6 +1020,7 @@ export default function Home({
   // the lg:relative override; we just track the boolean).
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>('dracula')
   const [confirmDelete, setConfirmDelete] = useState<{ label: string; doDelete: () => void } | null>(null)
   const [search, setSearch] = useState('')
@@ -1699,7 +1697,7 @@ export default function Home({
       {/* main column */}
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
         {flags.showHeader && (
-        <header className="magpie-header px-3 py-3 flex items-center gap-2 shrink-0 z-10">
+        <header className="magpie-header px-3 py-3 flex items-center gap-1 shrink-0 z-10">
           {flags.persistChat && (
             <button
               onClick={() => setSidebarOpen(true)}
@@ -1717,64 +1715,87 @@ export default function Home({
             </span>
           )}
           <div className="flex-1" />
-          {messages.length > 0 && (
-            <button
-              onClick={() => {
-                // Download the active chat as a markdown transcript.
-                // Builds a synthetic Conversation from current state if the
-                // chat hasn't been persisted yet (kiosk mode, or a brand-new
-                // chat before the autosave) — still useful to capture.
-                const conv: Conversation = activeId
-                  ? (conversations.find(c => c.id === activeId)
-                      ?? { id: activeId, title: 'Chat', messages, createdAt: Date.now(), updatedAt: Date.now() })
-                  : { id: 'unsaved', title: autoTitle(messages), messages, createdAt: Date.now(), updatedAt: Date.now() }
-                const safeTitle = conv.title.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') || 'magpie-chat'
-                downloadTextFile(conversationToMarkdown(conv), `${safeTitle}.md`, 'text/markdown')
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-              title={t('header.downloadChat', 'Download chat as Markdown')}
-              aria-label={t('header.downloadChat', 'Download current chat as Markdown')}
-            >
-              <DownloadIcon />
-            </button>
-          )}
-          {activeId && flags.persistChat && (
-            <button
-              onClick={() => {
-                const conv = conversations.find(c => c.id === activeId)
-                if (!conv) return
-                setConfirmDelete({
-                  label: `"${conv.title}"`,
-                  doDelete: () => { removeConversation(activeId); newConversation() },
-                })
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-red-400 transition-colors"
-              title={t('header.deleteChat', 'Delete chat')}
-              aria-label={t('header.deleteChat', 'Delete current chat')}
-            >
-              <TrashIcon />
-            </button>
-          )}
-          {flags.persistChat && (
-            <button
-              onClick={newConversation}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-              title={t('header.newChat', 'New chat')}
-              aria-label={t('header.newChat', 'New chat')}
-            >
-              <NewChatIcon />
-            </button>
-          )}
-          {flags.showSettings && (
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-              title={t('header.settings', 'Settings')}
-              aria-label={t('header.settings', 'Open settings')}
-            >
-              <GearIcon />
-            </button>
-          )}
+          {/* Single kebab menu — holds reload, new chat, download, delete,
+              settings. Reload is unconditional so the menu is always
+              rendered; the other items are state/flag-gated. */}
+          <div className="relative">
+              <button
+                onClick={() => setHeaderMenuOpen(v => !v)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
+                title={t('header.more', 'More')}
+                aria-label={t('header.more', 'More actions')}
+                aria-haspopup="menu"
+                aria-expanded={headerMenuOpen}
+              >
+                <EllipsisIcon />
+              </button>
+              {headerMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setHeaderMenuOpen(false)} />
+                  <div className="absolute right-0 top-full z-40 mt-1 min-w-[12rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden">
+                    <button
+                      onClick={() => { setHeaderMenuOpen(false); window.location.reload() }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 transition-colors"
+                    >
+                      <RefreshIcon />
+                      <span>{t('header.refresh', 'Reload')}</span>
+                    </button>
+                    {flags.persistChat && (
+                      <button
+                        onClick={() => { setHeaderMenuOpen(false); newConversation() }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 transition-colors"
+                      >
+                        <NewChatIcon />
+                        <span>{t('header.newChat', 'New chat')}</span>
+                      </button>
+                    )}
+                    {messages.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setHeaderMenuOpen(false)
+                          const conv: Conversation = activeId
+                            ? (conversations.find(c => c.id === activeId)
+                                ?? { id: activeId, title: 'Chat', messages, createdAt: Date.now(), updatedAt: Date.now() })
+                            : { id: 'unsaved', title: autoTitle(messages), messages, createdAt: Date.now(), updatedAt: Date.now() }
+                          const safeTitle = conv.title.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') || 'magpie-chat'
+                          downloadTextFile(conversationToMarkdown(conv), `${safeTitle}.md`, 'text/markdown')
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 transition-colors"
+                      >
+                        <DownloadIcon />
+                        <span>{t('header.downloadChat', 'Download chat')}</span>
+                      </button>
+                    )}
+                    {activeId && flags.persistChat && (
+                      <button
+                        onClick={() => {
+                          setHeaderMenuOpen(false)
+                          const conv = conversations.find(c => c.id === activeId)
+                          if (!conv) return
+                          setConfirmDelete({
+                            label: `"${conv.title}"`,
+                            doDelete: () => { removeConversation(activeId); newConversation() },
+                          })
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 hover:text-red-400 transition-colors"
+                      >
+                        <TrashIcon />
+                        <span>{t('header.deleteChat', 'Delete chat')}</span>
+                      </button>
+                    )}
+                    {flags.showSettings && (
+                      <button
+                        onClick={() => { setHeaderMenuOpen(false); setSettingsOpen(true) }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 transition-colors"
+                      >
+                        <GearIcon />
+                        <span>{t('header.settings', 'Settings')}</span>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
         </header>
         )}
 
@@ -1915,7 +1936,20 @@ export default function Home({
                 }
               }
               return (
-                <div className="relative px-2.5 pt-2.5">
+                <div className="px-2.5 pt-2.5 flex items-center gap-1.5">
+                  {/* Provider pill — read-only attribution. Sits left of the
+                   *  model picker so the picker label (e.g. "GPT-4o", "Llama
+                   *  3.1 8B") doesn't have to carry attribution. Same pill
+                   *  shape as the model picker for visual rhythm; muted bg +
+                   *  no chevron + no hover state so it reads as informational
+                   *  rather than clickable. */}
+                  <span
+                    className="inline-flex items-center rounded-lg border border-white/10 bg-surface-3 px-2.5 py-1.5 text-xs text-fg-3"
+                    title={`Provider: ${providerInfo.label}`}
+                  >
+                    <span className="truncate max-w-[10rem]">{providerInfo.label}</span>
+                  </span>
+                  <div className="relative">
                   <button
                     onClick={openDropdown}
                     className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1.5 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
@@ -1932,7 +1966,7 @@ export default function Home({
                           so dropping DOWN runs the menu off the fold.
                           Floating UP into the chat area is the only
                           direction that keeps the full list visible. */}
-                      <div className="absolute left-2.5 bottom-full z-40 mb-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[50vh] overflow-y-auto">
+                      <div className="absolute left-0 bottom-full z-40 mb-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[50vh] overflow-y-auto">
                         <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface flex items-center justify-between">
                           <span>{providerInfo.label}</span>
                           {providerInfo.category === 'local' && liveModelsLoading && <span className="text-fg-4">…</span>}
@@ -1961,6 +1995,7 @@ export default function Home({
                       </div>
                     </>
                   )}
+                  </div>{/* /relative model-picker wrapper */}
                 </div>
               )
             })()}

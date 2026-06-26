@@ -6,7 +6,7 @@ const es: Record<string, string> = {
   'header.openChats':         'Abrir chats',
   'header.newChat':           'Nuevo chat',
   'header.deleteChat':        'Eliminar chat',
-  'header.downloadChat':      'Descargar chat como Markdown',
+  'header.downloadChat':      'Descargar chat',
   'header.settings':          'Configuración',
   // sidebar
   'sidebar.chats':            'Chats',
@@ -40,7 +40,6 @@ const es: Record<string, string> = {
   'settings.import':          'Importar…',
   'settings.export':          'Exportar…',
   'settings.reset':           'Restablecer',
-  'settings.checkForUpdates': 'Buscar actualizaciones',
   'settings.delete':          'Eliminar',
   'settings.cancel':          'Cancelar',
   // status
