@@ -30,7 +30,8 @@
     "token.js": "^0.7.1",
     "unpdf": "^1.6.2",
     "uuid": "^11.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
