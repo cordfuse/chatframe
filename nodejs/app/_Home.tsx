@@ -632,13 +632,7 @@ function SettingsPanel({
           </div>
         </div>
 
-        <div className="px-5 py-3 flex items-center justify-between text-xs text-fg-4">
-          <button
-            onClick={() => window.location.reload()}
-            className="hover:text-fg-2 transition-colors"
-          >
-            {t('settings.checkForUpdates', 'Check for updates')}
-          </button>
+        <div className="px-5 py-3 flex items-center justify-end text-xs text-fg-4">
           <span>{branding.name} v{APP_VERSION}</span>
         </div>
       </aside>

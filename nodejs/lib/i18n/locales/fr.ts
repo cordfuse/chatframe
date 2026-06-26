@@ -33,7 +33,6 @@ const fr: Record<string, string> = {
   'settings.import':          'Importer…',
   'settings.export':          'Exporter…',
   'settings.reset':           'Réinitialiser',
-  'settings.checkForUpdates': 'Vérifier les mises à jour',
   'settings.delete':          'Supprimer',
   'settings.cancel':          'Annuler',
   'status.typing':            'écrit…',

@@ -40,7 +40,6 @@ const es: Record<string, string> = {
   'settings.import':          'Importar…',
   'settings.export':          'Exportar…',
   'settings.reset':           'Restablecer',
-  'settings.checkForUpdates': 'Buscar actualizaciones',
   'settings.delete':          'Eliminar',
   'settings.cancel':          'Cancelar',
   // status
