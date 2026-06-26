@@ -12,10 +12,17 @@ export interface ModelInfo {
 
 export type ProviderCategory = 'cloud' | 'local'
 
-// Factory: given a model id, return an AI SDK LanguageModel. Captures any
-// per-provider construction needs (local providers need a baseURL up front,
-// gemini needs explicit env-var precedence, etc.).
+// Public factory shape — what callers of provider.createModel see. Pure
+// (modelId) -> LanguageModel because by the time it's called the
+// provider config (envKey, baseURL bits) is already resolved.
 export type ModelFactory = (modelId: string) => LanguageModel
+
+// Internal factory shape — what the FACTORIES map in ai-tools.ts uses.
+// Receives the resolved ProviderInfo so any per-provider runtime wiring
+// (env-var name, baseURL, etc.) reads from the YAML-loaded config instead
+// of being hard-coded in a closure at module load. The loader binds this
+// to the public ModelFactory shape by partial application.
+export type InternalModelFactory = (modelId: string, providerInfo: ProviderInfo) => LanguageModel
 
 export interface ProviderInfo {
   id: string

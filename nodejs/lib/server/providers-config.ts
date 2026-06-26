@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
-import type { ProviderInfo, ModelFactory, ProviderCategory, ModelInfo } from './ai-tools-types'
+import type { ProviderInfo, InternalModelFactory, ProviderCategory, ModelInfo } from './ai-tools-types'
 
 // Path resolution: next.js runtime cwd is the project root in dev + on
 // Vercel. process.cwd() gives the same root in both. The YAML lives at
@@ -65,16 +65,22 @@ function validateCategory(providerId: string, raw: unknown): ProviderCategory {
 /**
  * Merge YAML data with a code-side factory map.
  *
- * @param factories — keyed by provider id; entries with no matching YAML
- *                    provider are silently ignored (lets you keep a
- *                    factory around for a provider the operator removed
- *                    from YAML without crashing the build).
+ * @param factories — keyed by provider id, each receives the resolved
+ *                    ProviderInfo at call time so per-provider config
+ *                    (envKey, baseURLEnv, defaultBaseURL) reads from
+ *                    YAML and isn't hard-coded in a closure. Entries
+ *                    with no matching YAML provider are silently ignored
+ *                    (lets you keep a factory around for a provider the
+ *                    operator removed from YAML without crashing).
  * @returns the same ProviderInfo[] shape that pre-YAML code expected
  *          (id, label, category, models, createModel, etc.), assembled
  *          per the YAML's provider order so the UI listing is stable.
+ *          The exposed `createModel` is the standard ModelFactory
+ *          shape (m) => LanguageModel — the loader binds the
+ *          providerInfo arg via partial application.
  */
 export function loadProvidersConfig(
-  factories: Record<string, ModelFactory>,
+  factories: Record<string, InternalModelFactory>,
 ): ProviderInfo[] {
   let raw: string
   try {
@@ -108,13 +114,19 @@ export function loadProvidersConfig(
       throw new ProviderConfigError(`provider ${providerId}: no factory wired in ai-tools.ts; add an entry to FACTORIES or remove from YAML`)
     }
 
+    // Build the ProviderInfo with a placeholder createModel, fill the
+    // category-specific config, then bind the factory to the now-resolved
+    // ProviderInfo via partial application. The factory closure captures
+    // `info` by reference, so it sees the YAML-loaded envKey / baseURLEnv /
+    // defaultBaseURL at call time — not at module load.
     const info: ProviderInfo = {
       id: providerId,
       label: entry.label,
       category,
       defaultModel: entry.defaultModel,
       models,
-      createModel: factory,
+      // Placeholder — replaced below once info is fully populated.
+      createModel: () => { throw new Error(`provider ${providerId}: createModel called before binding`) },
     }
     if (category === 'cloud') {
       if (typeof entry.envKey !== 'string' || entry.envKey.length === 0) {
@@ -132,6 +144,7 @@ export function loadProvidersConfig(
       info.baseURLEnv = entry.baseURLEnv
       info.defaultBaseURL = entry.defaultBaseURL
     }
+    info.createModel = (modelId: string) => factory(modelId, info)
     out.push(info)
   }
   return out

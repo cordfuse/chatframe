@@ -1915,7 +1915,20 @@ export default function Home({
                 }
               }
               return (
-                <div className="relative px-2.5 pt-2.5">
+                <div className="px-2.5 pt-2.5 flex items-center gap-1.5">
+                  {/* Provider pill — read-only attribution. Sits left of the
+                   *  model picker so the picker label (e.g. "GPT-4o", "Llama
+                   *  3.1 8B") doesn't have to carry attribution. Same pill
+                   *  shape as the model picker for visual rhythm; muted bg +
+                   *  no chevron + no hover state so it reads as informational
+                   *  rather than clickable. */}
+                  <span
+                    className="inline-flex items-center rounded-lg border border-white/10 bg-surface-3 px-2.5 py-1.5 text-xs text-fg-3"
+                    title={`Provider: ${providerInfo.label}`}
+                  >
+                    <span className="truncate max-w-[10rem]">{providerInfo.label}</span>
+                  </span>
+                  <div className="relative">
                   <button
                     onClick={openDropdown}
                     className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1.5 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
@@ -1932,7 +1945,7 @@ export default function Home({
                           so dropping DOWN runs the menu off the fold.
                           Floating UP into the chat area is the only
                           direction that keeps the full list visible. */}
-                      <div className="absolute left-2.5 bottom-full z-40 mb-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[50vh] overflow-y-auto">
+                      <div className="absolute left-0 bottom-full z-40 mb-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[50vh] overflow-y-auto">
                         <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface flex items-center justify-between">
                           <span>{providerInfo.label}</span>
                           {providerInfo.category === 'local' && liveModelsLoading && <span className="text-fg-4">…</span>}
@@ -1961,6 +1974,7 @@ export default function Home({
                       </div>
                     </>
                   )}
+                  </div>{/* /relative model-picker wrapper */}
                 </div>
               )
             })()}

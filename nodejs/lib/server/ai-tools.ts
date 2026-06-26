@@ -47,43 +47,53 @@ import { getToolsForServers, executeMcpToolCall, isMcpToolName } from './mcp'
 // publishes an OpenAI-shaped surface.
 
 export type { ModelInfo, ProviderCategory, ProviderInfo, ModelFactory, PublicProviderInfo } from './ai-tools-types'
-import type { ModelFactory, ProviderInfo, PublicProviderInfo } from './ai-tools-types'
+import type { InternalModelFactory, ProviderInfo, PublicProviderInfo } from './ai-tools-types'
 import { loadProvidersConfig } from './providers-config'
 
-// Lazy local-provider model factories — created on first use so envKey
-// changes between requests get picked up.
-function localFactory(name: string, envKey: string, fallback: string): ModelFactory {
-  return (modelId: string) => {
-    const baseURL = process.env[envKey] || fallback
-    const compat = createOpenAICompatible({ name, baseURL, apiKey: 'local' })
-    return compat(modelId)
-  }
-}
-
 // Factory map keyed by provider id. Matches the provider keys in
-// config/providers.yaml. Behavior lives here so each entry can closure-
-// capture any per-provider env-detection or auth logic.
-const FACTORIES: Record<string, ModelFactory> = {
-  anthropic:  (m) => anthropic(m),
-  openai:     (m) => openai(m),
-  gemini:     (m) => {
-    // @ai-sdk/google's default singleton reads GOOGLE_GENERATIVE_AI_API_KEY,
-    // but the Magpie env convention (and most users' existing setups) uses
-    // GEMINI_API_KEY. Build the provider explicitly with that key at request
-    // time so an env change between requests gets picked up. Fall back to
-    // the default singleton if only the SDK-native var is set.
-    const key = process.env.GEMINI_API_KEY
+// config/providers.yaml. Each factory receives the YAML-resolved
+// ProviderInfo as its second arg — so any per-provider config (envKey,
+// baseURLEnv, defaultBaseURL) reads from YAML at call time instead of
+// being duplicated in a closure. The loader binds the second arg via
+// partial application before exposing the public createModel surface.
+const FACTORIES: Record<string, InternalModelFactory> = {
+  // ── Cloud — most are one-liner pass-throughs to the SDK provider.
+  // The SDK reads its provider-conventional env var (ANTHROPIC_API_KEY
+  // for @ai-sdk/anthropic, OPENAI_API_KEY for @ai-sdk/openai, etc.),
+  // which matches what the YAML declares under `envKey` for these.
+  anthropic:  (m, _p) => anthropic(m),
+  openai:     (m, _p) => openai(m),
+  groq:       (m, _p) => groq(m),
+  mistral:    (m, _p) => mistral(m),
+  cohere:     (m, _p) => cohere(m),
+  perplexity: (m, _p) => perplexity(m),
+  bedrock:    (m, _p) => bedrock(m),
+
+  // Gemini needs custom env-var handling: @ai-sdk/google's default
+  // singleton reads GOOGLE_GENERATIVE_AI_API_KEY, but the Magpie env
+  // convention (and most users' existing setups) uses whatever the YAML
+  // declares as `envKey` — typically GEMINI_API_KEY. Build the provider
+  // explicitly with the YAML-named key so an env change between requests
+  // gets picked up. Fall back to the default singleton if the named key
+  // isn't set.
+  gemini: (m, p) => {
+    const key = p.envKey ? process.env[p.envKey] : undefined
     if (!key) return googleDefault(m)
     return createGoogleGenerativeAI({ apiKey: key })(m)
   },
-  groq:       (m) => groq(m),
-  mistral:    (m) => mistral(m),
-  cohere:     (m) => cohere(m),
-  perplexity: (m) => perplexity(m),
-  bedrock:    (m) => bedrock(m),
-  ollama:     localFactory('ollama',   'OLLAMA_BASE_URL',   'http://localhost:11434/v1'),
-  llamacpp:   localFactory('llamacpp', 'LLAMACPP_BASE_URL', 'http://localhost:8080/v1'),
-  lmstudio:   localFactory('lmstudio', 'LMSTUDIO_BASE_URL', 'http://localhost:1234/v1'),
+
+  // ── Local — all three share the same OpenAI-compatible shape: read
+  // baseURLEnv from the env (falling back to defaultBaseURL), construct
+  // a fresh OpenAI-compatible provider. Doing this per-call (not once
+  // at module load) means env changes between requests are picked up.
+  ollama:   (m, p) => localOpenAICompatible(m, p),
+  llamacpp: (m, p) => localOpenAICompatible(m, p),
+  lmstudio: (m, p) => localOpenAICompatible(m, p),
+}
+
+function localOpenAICompatible(modelId: string, p: ProviderInfo) {
+  const baseURL = (p.baseURLEnv && process.env[p.baseURLEnv]) || p.defaultBaseURL!
+  return createOpenAICompatible({ name: p.id, baseURL, apiKey: 'local' })(modelId)
 }
 
 export const PROVIDERS: ProviderInfo[] = loadProvidersConfig(FACTORIES)
