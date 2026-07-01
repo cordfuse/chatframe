@@ -1,7 +1,7 @@
 # Chatframe — single-host compose for deployments where the host ALREADY runs a
 # reverse proxy (Caddy / nginx / Traefik) attached to a shared docker network.
 #
-# Pattern matches the cachy infra setup: a host-level Caddy container lives
+# Pattern matches a typical home-lab infra setup: a host-level Caddy container lives
 # on `proxy_net` and routes <service>.linux.internal → <container>:<port>.
 # Chatframe joins that same network and exposes nothing on the host — Caddy
 # proxies by container name.
